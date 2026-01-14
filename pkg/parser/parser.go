@@ -25,10 +25,7 @@ func NewParser(filename string) (*Parser, error) {
 	}
 
 	// Try to detect if it's JSONL by checking file extension
-	isJSONL := len(filename) > 5 && filename[len(filename)-5:] == "jsonl"
-	if !isJSONL && len(filename) > 6 && filename[len(filename)-6:] == ".jsonl" {
-		isJSONL = true
-	}
+	isJSONL := len(filename) >= 6 && filename[len(filename)-6:] == ".jsonl"
 
 	return &Parser{
 		file:   file,

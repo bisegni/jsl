@@ -136,6 +136,26 @@ func (f *Filter) Match(record parser.Record) bool {
 }
 
 func compareEqual(a, b interface{}) bool {
+	// Try direct comparison for common types
+	switch av := a.(type) {
+	case string:
+		if bv, ok := b.(string); ok {
+			return av == bv
+		}
+	case float64:
+		if bv, ok := b.(float64); ok {
+			return av == bv
+		}
+	case bool:
+		if bv, ok := b.(bool); ok {
+			return av == bv
+		}
+	case int:
+		if bv, ok := b.(int); ok {
+			return av == bv
+		}
+	}
+	// Fallback to string comparison for other types
 	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
 }
 
@@ -176,6 +196,16 @@ func compareLessEqual(a, b interface{}) bool {
 }
 
 func containsValue(a, b interface{}) bool {
+	// Handle string types directly for efficiency
+	if aStr, ok := a.(string); ok {
+		if bStr, ok := b.(string); ok {
+			return strings.Contains(aStr, bStr)
+		}
+		// If b is not a string, convert it
+		bStr := fmt.Sprintf("%v", b)
+		return strings.Contains(aStr, bStr)
+	}
+	// Fallback to string conversion for other types
 	aStr := fmt.Sprintf("%v", a)
 	bStr := fmt.Sprintf("%v", b)
 	return strings.Contains(aStr, bStr)
