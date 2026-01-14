@@ -1,0 +1,24 @@
+{
+  "company": "TechCorp",
+  "employees": [
+    {
+      "name": "John",
+      "role": "Engineer",
+      "salary": 80000
+    },
+    {
+      "name": "Jane",
+      "role": "Manager",
+      "salary": 95000
+    },
+    {
+      "name": "Mike",
+      "role": "Designer",
+      "salary": 70000
+    }
+  ],
+  "location": {
+    "city": "Austin",
+    "state": "TX"
+  }
+}
