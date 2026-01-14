@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "name": "Alice",
+    "age": 30,
+    "email": "alice@example.com",
+    "city": "New York",
+    "active": true
+  },
+  {
+    "id": 2,
+    "name": "Bob",
+    "age": 25,
+    "email": "bob@example.com",
+    "city": "San Francisco",
+    "active": true
+  },
+  {
+    "id": 3,
+    "name": "Charlie",
+    "age": 35,
+    "email": "charlie@example.com",
+    "city": "Boston",
+    "active": false
+  },
+  {
+    "id": 4,
+    "name": "Diana",
+    "age": 28,
+    "email": "diana@example.com",
+    "city": "Seattle",
+    "active": true
+  }
+]
