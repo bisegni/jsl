@@ -10,30 +10,33 @@ import (
 )
 
 var (
-	queryPath   string
-	queryPretty bool
+	QueryPath   string
+	QueryPretty bool
 )
 
 var queryCmd = &cobra.Command{
-	Use:   "query [file]",
+	Use:   "query [file] [path]",
 	Short: "Query JSON/JSONL file with path expression",
 	Long: `Query a JSON or JSONL file using a dot-separated path expression.
 Examples:
-  jsl query data.json --path .user.name
-  jsl query data.jsonl --path .items.*.price
-  jsl query data.json --path .metadata`,
-	Args: cobra.ExactArgs(1),
-	RunE: runQuery,
+  jsl query data.json .user.name
+  jsl query data.jsonl .items.*.price
+  jsl query data.json .metadata`,
+	Args: cobra.RangeArgs(1, 2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		filename := args[0]
+		path := QueryPath
+		if len(args) > 1 {
+			path = args[1]
+		}
+		return RunQuery(filename, path, QueryPretty)
+	},
 }
 
 func init() {
-	queryCmd.Flags().StringVarP(&queryPath, "path", "p", ".", "Path to extract (e.g., .user.name)")
-	queryCmd.Flags().BoolVar(&queryPretty, "pretty", true, "Pretty print output")
 }
 
-func runQuery(cmd *cobra.Command, args []string) error {
-	filename := args[0]
-
+func RunQuery(filename string, queryPath string, queryPretty bool) error {
 	p, err := parser.NewParser(filename)
 	if err != nil {
 		return err
@@ -46,7 +49,7 @@ func runQuery(cmd *cobra.Command, args []string) error {
 	}
 
 	q := query.NewQuery(queryPath)
-	
+
 	// If path is "." or empty, return all records
 	if queryPath == "" || queryPath == "." {
 		encoder := json.NewEncoder(os.Stdout)
@@ -55,7 +58,7 @@ func runQuery(cmd *cobra.Command, args []string) error {
 		}
 		return encoder.Encode(records)
 	}
-	
+
 	results := make([]interface{}, 0, len(records))
 
 	for _, record := range records {
@@ -70,6 +73,10 @@ func runQuery(cmd *cobra.Command, args []string) error {
 	encoder := json.NewEncoder(os.Stdout)
 	if queryPretty {
 		encoder.SetIndent("", "  ")
+	}
+
+	if len(results) == 0 {
+		return nil
 	}
 
 	if len(results) == 1 {
