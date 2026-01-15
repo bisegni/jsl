@@ -1,6 +1,6 @@
 module github.com/bisegni/jsl
 
-go 1.24.11
+go 1.22.0
 
 require github.com/spf13/cobra v1.10.2
 
