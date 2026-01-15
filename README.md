@@ -27,6 +27,7 @@ sudo mv jsl /usr/local/bin/  # Optional: install globally
 ```bash
 go install github.com/bisegni/jsl@latest
 ```
+To install the binary to a standard macOS/Linux path (e.g., /usr/local/bin), set GOBIN globally: `go env -w GOBIN=/usr/local/bin`. Then run the install command above.
 
 ## Usage
 
