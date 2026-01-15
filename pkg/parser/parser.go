@@ -13,29 +13,71 @@ type Record map[string]interface{}
 
 // Parser handles reading JSON and JSONL files
 type Parser struct {
-	file   *os.File
-	isJSONL bool
+	file     *os.File
+	isJSONL  bool
+	tmpFile  string // Path to temporary file, if created
 }
 
 // NewParser creates a new parser for the given file
+// Special cases:
+// - Empty string or "-" reads from stdin
+// - Strings starting with '{' or '[' are treated as inline JSON
 func NewParser(filename string) (*Parser, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+	var file *os.File
+	var err error
+	var isJSONL bool
+	var tmpFile string
+
+	// Handle inline JSON (starts with { or [)
+	if len(filename) > 0 && (filename[0] == '{' || filename[0] == '[') {
+		// Create a temporary file to store inline JSON
+		tmpFileHandle, err := os.CreateTemp("", "jsl-inline-*.json")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp file: %w", err)
+		}
+		tmpFile = tmpFileHandle.Name()
+		if _, err := tmpFileHandle.WriteString(filename); err != nil {
+			tmpFileHandle.Close()
+			os.Remove(tmpFile)
+			return nil, fmt.Errorf("failed to write inline JSON: %w", err)
+		}
+		// Seek back to the beginning
+		if _, err := tmpFileHandle.Seek(0, 0); err != nil {
+			tmpFileHandle.Close()
+			os.Remove(tmpFile)
+			return nil, fmt.Errorf("failed to seek: %w", err)
+		}
+		file = tmpFileHandle
+		isJSONL = false
+	} else if filename == "" || filename == "-" {
+		// Read from stdin
+		file = os.Stdin
+		isJSONL = false // Auto-detect by trying JSON first
+	} else {
+		// Regular file
+		file, err = os.Open(filename)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open file: %w", err)
+		}
+		// Try to detect if it's JSONL by checking file extension
+		isJSONL = len(filename) >= 6 && filename[len(filename)-6:] == ".jsonl"
 	}
 
-	// Try to detect if it's JSONL by checking file extension
-	isJSONL := len(filename) >= 6 && filename[len(filename)-6:] == ".jsonl"
-
 	return &Parser{
-		file:   file,
+		file:    file,
 		isJSONL: isJSONL,
+		tmpFile: tmpFile,
 	}, nil
 }
 
-// Close closes the underlying file
+// Close closes the underlying file and cleans up any temporary files
 func (p *Parser) Close() error {
-	return p.file.Close()
+	err := p.file.Close()
+	// Clean up temporary file if it exists
+	if p.tmpFile != "" {
+		os.Remove(p.tmpFile)
+	}
+	return err
 }
 
 // IsJSONL returns whether the parser is treating the file as JSONL

@@ -13,23 +13,33 @@ var (
 )
 
 var formatCmd = &cobra.Command{
-	Use:   "format [file]",
+	Use:   "format [file|-]",
 	Short: "Format and pretty-print JSON/JSONL file",
 	Long: `Format and pretty-print a JSON or JSONL file.
+	
+Supports:
+  - File paths: jsl format data.json
+  - Stdin: cat data.json | jsl format (or use "-")
+
 Examples:
   jsl format data.json
-  jsl format data.jsonl --output jsonl`,
-	Args: cobra.ExactArgs(1),
+  jsl format data.jsonl --output jsonl
+  cat data.json | jsl format
+  echo '{"name":"Alice"}' | jsl format`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runFormat,
 }
 
 func init() {
-	formatCmd.Flags().BoolVarP(&formatPretty, "pretty", "p", true, "Pretty print output")
+	formatCmd.Flags().BoolVar(&formatPretty, "pretty", true, "Pretty print output")
 	formatCmd.Flags().StringVarP(&formatOutput, "output", "o", "", "Output format (json or jsonl, auto-detect if not specified)")
 }
 
 func runFormat(cmd *cobra.Command, args []string) error {
-	filename := args[0]
+	filename := "-"
+	if len(args) > 0 {
+		filename = args[0]
+	}
 
 	p, err := parser.NewParser(filename)
 	if err != nil {

@@ -15,20 +15,48 @@ var (
 )
 
 var queryCmd = &cobra.Command{
-	Use:   "query [file] [path]",
+	Use:   "query [file|JSON|-] [path]",
 	Short: "Query JSON/JSONL file with path expression",
 	Long: `Query a JSON or JSONL file using a dot-separated path expression.
+
+Supports:
+  - File paths: jsl query data.json .user.name
+  - Stdin: cat data.json | jsl query - .user.name (or omit filename)
+  - Inline JSON: jsl query '{"user":{"name":"Alice"}}' .user.name
+
 Examples:
   jsl query data.json .user.name
   jsl query data.jsonl .items.*.price
-  jsl query data.json .metadata`,
-	Args: cobra.RangeArgs(1, 2),
+  cat data.json | jsl query - .metadata
+  echo '{"name":"Alice"}' | jsl query .name
+  jsl query '{"user":{"name":"Alice"}}' .user.name`,
+	Args: cobra.RangeArgs(0, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		filename := args[0]
-		path := QueryPath
-		if len(args) > 1 {
+		// Handle different argument patterns
+		var filename, path string
+		
+		if len(args) == 0 {
+			// No args, read from stdin
+			filename = "-"
+			path = QueryPath
+		} else if len(args) == 1 {
+			// One arg: could be filename or path
+			arg := args[0]
+			// If it looks like a path (starts with .) or stdin marker, treat as path
+			if arg == "-" || (len(arg) > 0 && arg[0] == '.') {
+				filename = "-"
+				path = arg
+			} else {
+				// Otherwise it's a filename
+				filename = arg
+				path = QueryPath
+			}
+		} else {
+			// Two args: filename and path
+			filename = args[0]
 			path = args[1]
 		}
+		
 		return RunQuery(filename, path, QueryPretty)
 	},
 }
