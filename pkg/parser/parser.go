@@ -18,14 +18,47 @@ type Parser struct {
 }
 
 // NewParser creates a new parser for the given file
+// Special cases:
+// - Empty string or "-" reads from stdin
+// - Strings starting with '{' or '[' are treated as inline JSON
 func NewParser(filename string) (*Parser, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
-	}
+	var file *os.File
+	var err error
+	var isJSONL bool
 
-	// Try to detect if it's JSONL by checking file extension
-	isJSONL := len(filename) >= 6 && filename[len(filename)-6:] == ".jsonl"
+	// Handle inline JSON (starts with { or [)
+	if len(filename) > 0 && (filename[0] == '{' || filename[0] == '[') {
+		// Create a temporary file to store inline JSON
+		tmpFile, err := os.CreateTemp("", "jsl-inline-*.json")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp file: %w", err)
+		}
+		if _, err := tmpFile.WriteString(filename); err != nil {
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+			return nil, fmt.Errorf("failed to write inline JSON: %w", err)
+		}
+		// Seek back to the beginning
+		if _, err := tmpFile.Seek(0, 0); err != nil {
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+			return nil, fmt.Errorf("failed to seek: %w", err)
+		}
+		file = tmpFile
+		isJSONL = false
+	} else if filename == "" || filename == "-" {
+		// Read from stdin
+		file = os.Stdin
+		isJSONL = false // Auto-detect by trying JSON first
+	} else {
+		// Regular file
+		file, err = os.Open(filename)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open file: %w", err)
+		}
+		// Try to detect if it's JSONL by checking file extension
+		isJSONL = len(filename) >= 6 && filename[len(filename)-6:] == ".jsonl"
+	}
 
 	return &Parser{
 		file:   file,

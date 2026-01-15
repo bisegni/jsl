@@ -9,19 +9,28 @@ import (
 )
 
 var statsCmd = &cobra.Command{
-	Use:   "stats [file]",
+	Use:   "stats [file|-]",
 	Short: "Show statistics about JSON/JSONL file",
 	Long: `Display statistics about a JSON or JSONL file including record count,
 field types, and structure information.
+
+Supports:
+  - File paths: jsl stats data.json
+  - Stdin: cat data.json | jsl stats
+
 Examples:
   jsl stats data.json
-  jsl stats data.jsonl`,
-	Args: cobra.ExactArgs(1),
+  jsl stats data.jsonl
+  cat data.json | jsl stats`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runStats,
 }
 
 func runStats(cmd *cobra.Command, args []string) error {
-	filename := args[0]
+	filename := "-"
+	if len(args) > 0 {
+		filename = args[0]
+	}
 
 	p, err := parser.NewParser(filename)
 	if err != nil {
@@ -38,7 +47,11 @@ func runStats(cmd *cobra.Command, args []string) error {
 	stats := gatherStats(records)
 
 	// Print statistics
-	fmt.Printf("File: %s\n", filename)
+	if filename == "-" {
+		fmt.Printf("File: <stdin>\n")
+	} else {
+		fmt.Printf("File: %s\n", filename)
+	}
 	fmt.Printf("Format: %s\n", getFormat(p.IsJSONL()))
 	fmt.Printf("Total records: %d\n", stats["total_records"])
 	

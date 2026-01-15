@@ -8,18 +8,27 @@ import (
 )
 
 var validateCmd = &cobra.Command{
-	Use:   "validate [file]",
+	Use:   "validate [file|-]",
 	Short: "Validate JSON/JSONL file syntax",
 	Long: `Validate that a JSON or JSONL file has correct syntax.
+	
+Supports:
+  - File paths: jsl validate data.json
+  - Stdin: cat data.json | jsl validate
+
 Examples:
   jsl validate data.json
-  jsl validate data.jsonl`,
-	Args: cobra.ExactArgs(1),
+  jsl validate data.jsonl
+  cat data.json | jsl validate`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runValidate,
 }
 
 func runValidate(cmd *cobra.Command, args []string) error {
-	filename := args[0]
+	filename := "-"
+	if len(args) > 0 {
+		filename = args[0]
+	}
 
 	p, err := parser.NewParser(filename)
 	if err != nil {
