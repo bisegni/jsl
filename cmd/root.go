@@ -41,6 +41,7 @@ Examples:
 		if len(args) == 1 {
 			arg := args[0]
 			// If we have stdin and arg looks like a path (starts with .), use it as path
+			// Note: This assumes paths start with '.'. Other patterns will be treated as filenames.
 			if hasStdin && len(arg) > 0 && arg[0] == '.' {
 				return RunQuery("-", arg, QueryPretty)
 			}

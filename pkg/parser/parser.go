@@ -13,8 +13,9 @@ type Record map[string]interface{}
 
 // Parser handles reading JSON and JSONL files
 type Parser struct {
-	file   *os.File
-	isJSONL bool
+	file     *os.File
+	isJSONL  bool
+	tmpFile  string // Path to temporary file, if created
 }
 
 // NewParser creates a new parser for the given file
@@ -25,26 +26,28 @@ func NewParser(filename string) (*Parser, error) {
 	var file *os.File
 	var err error
 	var isJSONL bool
+	var tmpFile string
 
 	// Handle inline JSON (starts with { or [)
 	if len(filename) > 0 && (filename[0] == '{' || filename[0] == '[') {
 		// Create a temporary file to store inline JSON
-		tmpFile, err := os.CreateTemp("", "jsl-inline-*.json")
+		tmpFileHandle, err := os.CreateTemp("", "jsl-inline-*.json")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create temp file: %w", err)
 		}
-		if _, err := tmpFile.WriteString(filename); err != nil {
-			tmpFile.Close()
-			os.Remove(tmpFile.Name())
+		tmpFile = tmpFileHandle.Name()
+		if _, err := tmpFileHandle.WriteString(filename); err != nil {
+			tmpFileHandle.Close()
+			os.Remove(tmpFile)
 			return nil, fmt.Errorf("failed to write inline JSON: %w", err)
 		}
 		// Seek back to the beginning
-		if _, err := tmpFile.Seek(0, 0); err != nil {
-			tmpFile.Close()
-			os.Remove(tmpFile.Name())
+		if _, err := tmpFileHandle.Seek(0, 0); err != nil {
+			tmpFileHandle.Close()
+			os.Remove(tmpFile)
 			return nil, fmt.Errorf("failed to seek: %w", err)
 		}
-		file = tmpFile
+		file = tmpFileHandle
 		isJSONL = false
 	} else if filename == "" || filename == "-" {
 		// Read from stdin
@@ -61,14 +64,20 @@ func NewParser(filename string) (*Parser, error) {
 	}
 
 	return &Parser{
-		file:   file,
+		file:    file,
 		isJSONL: isJSONL,
+		tmpFile: tmpFile,
 	}, nil
 }
 
-// Close closes the underlying file
+// Close closes the underlying file and cleans up any temporary files
 func (p *Parser) Close() error {
-	return p.file.Close()
+	err := p.file.Close()
+	// Clean up temporary file if it exists
+	if p.tmpFile != "" {
+		os.Remove(p.tmpFile)
+	}
+	return err
 }
 
 // IsJSONL returns whether the parser is treating the file as JSONL
