@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,9 +12,9 @@ type Record map[string]interface{}
 
 // Parser handles reading JSON and JSONL files
 type Parser struct {
-	file     *os.File
-	isJSONL  bool
-	tmpFile  string // Path to temporary file, if created
+	file    *os.File
+	isJSONL bool
+	tmpFile string // Path to temporary file, if created
 }
 
 // NewParser creates a new parser for the given file
@@ -96,7 +95,7 @@ func (p *Parser) ReadAll() ([]Record, error) {
 // readJSON reads a single JSON file
 func (p *Parser) readJSON() ([]Record, error) {
 	decoder := json.NewDecoder(p.file)
-	
+
 	var data interface{}
 	if err := decoder.Decode(&data); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
@@ -126,25 +125,14 @@ func (p *Parser) readJSON() ([]Record, error) {
 // readJSONL reads a JSONL (JSON Lines) file
 func (p *Parser) readJSONL() ([]Record, error) {
 	var records []Record
-	scanner := bufio.NewScanner(p.file)
-	lineNum := 0
+	decoder := json.NewDecoder(p.file)
 
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		if line == "" {
-			continue // Skip empty lines
-		}
-
+	for decoder.More() {
 		var record Record
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			return nil, fmt.Errorf("failed to parse line %d: %w", lineNum, err)
+		if err := decoder.Decode(&record); err != nil {
+			return nil, fmt.Errorf("failed to parse JSONL record: %w", err)
 		}
 		records = append(records, record)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file: %w", err)
 	}
 
 	return records, nil
@@ -172,19 +160,12 @@ func (p *Parser) forEachJSON(fn func(Record) error) error {
 }
 
 func (p *Parser) forEachJSONL(fn func(Record) error) error {
-	scanner := bufio.NewScanner(p.file)
-	lineNum := 0
+	decoder := json.NewDecoder(p.file)
 
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
+	for decoder.More() {
 		var record Record
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			return fmt.Errorf("failed to parse line %d: %w", lineNum, err)
+		if err := decoder.Decode(&record); err != nil {
+			return fmt.Errorf("failed to parse JSONL record: %w", err)
 		}
 
 		if err := fn(record); err != nil {
@@ -192,7 +173,7 @@ func (p *Parser) forEachJSONL(fn func(Record) error) error {
 		}
 	}
 
-	return scanner.Err()
+	return nil
 }
 
 // WriteJSON writes records as a JSON array
