@@ -54,54 +54,13 @@ func init() {
 	filterCmd.Flags().StringVar(&filterFormat, "format", "json", "Output format (json or jsonl)")
 }
 
-func runFilter(cmd *cobra.Command, args []string) error {
-	var filename string
-	var field, operator, value string
+// IsFilterExpression checks if a string looks like a filter expression (contains an operator)
+// and does NOT start with a dot (which signifies a path query)
+func IsFilterExpression(expr string) bool {
+	return query.IsFilterExpression(expr)
+}
 
-	// Parse arguments
-	if len(args) == 0 {
-		// Reading from stdin, check for expression in flags
-		filename = "-"
-		if filterField == "" {
-			return fmt.Errorf("when reading from stdin, provide filter expression or use --field, --op, --value flags")
-		}
-		field = filterField
-		operator = filterOperator
-		value = filterValue
-	} else if len(args) == 1 {
-		// One argument: could be filename or expression
-		arg := args[0]
-		
-		// Check if it's an expression (contains operator)
-		if expr := parseFilterExpression(arg); expr != nil {
-			// It's an expression, read from stdin
-			filename = "-"
-			field = expr.field
-			operator = expr.operator
-			value = expr.value
-		} else if filterField != "" {
-			// It's a filename with flags
-			filename = arg
-			field = filterField
-			operator = filterOperator
-			value = filterValue
-		} else {
-			return fmt.Errorf("provide filter expression (e.g., age>28) or use --field, --op, --value flags")
-		}
-	} else if len(args) == 2 {
-		// Two arguments: filename and expression
-		filename = args[0]
-		expr := parseFilterExpression(args[1])
-		if expr == nil {
-			return fmt.Errorf("invalid filter expression: %s (use format: field>value)", args[1])
-		}
-		field = expr.field
-		operator = expr.operator
-		value = expr.value
-	} else {
-		return fmt.Errorf("too many arguments")
-	}
-
+func RunFilter(filename string, field, operator, value string, pretty bool, extract bool, selectFields []string, format string) error {
 	// Validate we have all required fields
 	if field == "" || value == "" {
 		return fmt.Errorf("field and value are required")
@@ -121,7 +80,7 @@ func runFilter(cmd *cobra.Command, args []string) error {
 	// Parse filter value
 	var filterVal interface{}
 	filterVal = value
-	
+
 	// Try to parse as number
 	if val, err := parseNumber(value); err == nil {
 		filterVal = val
@@ -132,49 +91,84 @@ func runFilter(cmd *cobra.Command, args []string) error {
 
 	for _, record := range records {
 		if f.Match(record) {
-			filtered = append(filtered, record)
+			if len(selectFields) > 0 {
+				pruned := make(parser.Record)
+				for _, fld := range selectFields {
+					if val, ok := record[fld]; ok {
+						pruned[fld] = val
+					}
+				}
+				filtered = append(filtered, pruned)
+			} else {
+				filtered = append(filtered, record)
+			}
 		}
 	}
 
 	// Output filtered records
-	if strings.ToLower(filterFormat) == "jsonl" {
-		return parser.WriteJSONL(os.Stdout, filtered, filterPretty)
-	}
-	return parser.WriteJSON(os.Stdout, filtered, filterPretty)
-}
-
-type filterExpr struct {
-	field    string
-	operator string
-	value    string
-}
-
-// parseFilterExpression parses expressions like "age>28", "name=john", "status!=active"
-func parseFilterExpression(expr string) *filterExpr {
-	// Try to find operator in the expression
-	operators := []string{">=", "<=", "!=", "~=", ">", "<", "="}
-	
-	for _, op := range operators {
-		if idx := strings.Index(expr, op); idx > 0 {
-			field := strings.TrimSpace(expr[:idx])
-			value := strings.TrimSpace(expr[idx+len(op):])
-			
-			if field != "" && value != "" {
-				// Convert ~= to contains for internal representation
-				internalOp := op
-				if op == "~=" {
-					internalOp = "contains"
-				}
-				return &filterExpr{
-					field:    field,
-					operator: internalOp,
-					value:    value,
-				}
-			}
+	if extract {
+		encoder := json.NewEncoder(os.Stdout)
+		if pretty {
+			encoder.SetIndent("", "  ")
 		}
+		return encoder.Encode(filtered)
 	}
-	
-	return nil
+
+	if strings.ToLower(format) == "jsonl" {
+		return parser.WriteJSONL(os.Stdout, filtered, pretty)
+	}
+	return parser.WriteJSON(os.Stdout, filtered, pretty)
+}
+
+func runFilter(cmd *cobra.Command, args []string) error {
+	var filename string
+	var field, operator, value string
+
+	// Parse arguments
+	if len(args) == 0 {
+		// Reading from stdin, check for expression in flags
+		filename = "-"
+		if filterField == "" {
+			return fmt.Errorf("when reading from stdin, provide filter expression or use --field, --op, --value flags")
+		}
+		field = filterField
+		operator = filterOperator
+		value = filterValue
+	} else if len(args) == 1 {
+		// One argument: could be filename or expression
+		arg := args[0]
+
+		// Check if it's an expression (contains operator)
+		if expr := query.ParseFilterExpression(arg); expr != nil {
+			// It's an expression, read from stdin
+			filename = "-"
+			field = expr.Field
+			operator = expr.Operator
+			value = expr.Value
+		} else if filterField != "" {
+			// It's a filename with flags
+			filename = arg
+			field = filterField
+			operator = filterOperator
+			value = filterValue
+		} else {
+			return fmt.Errorf("provide filter expression (e.g., age>28) or use --field, --op, --value flags")
+		}
+	} else if len(args) == 2 {
+		// Two arguments: filename and expression
+		filename = args[0]
+		expr := query.ParseFilterExpression(args[1])
+		if expr == nil {
+			return fmt.Errorf("invalid filter expression: %s (use format: field>value)", args[1])
+		}
+		field = expr.Field
+		operator = expr.Operator
+		value = expr.Value
+	} else {
+		return fmt.Errorf("too many arguments")
+	}
+
+	return RunFilter(filename, field, operator, value, filterPretty, false, QuerySelect, filterFormat)
 }
 
 func parseNumber(s string) (interface{}, error) {

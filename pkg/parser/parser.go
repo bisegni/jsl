@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -125,14 +126,22 @@ func (p *Parser) readJSON() ([]Record, error) {
 // readJSONL reads a JSONL (JSON Lines) file
 func (p *Parser) readJSONL() ([]Record, error) {
 	var records []Record
-	decoder := json.NewDecoder(p.file)
+	scanner := bufio.NewScanner(p.file)
 
-	for decoder.More() {
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) == 0 {
+			continue
+		}
 		var record Record
-		if err := decoder.Decode(&record); err != nil {
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			return nil, fmt.Errorf("failed to parse JSONL record: %w", err)
 		}
 		records = append(records, record)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading JSONL file: %w", err)
 	}
 
 	return records, nil
@@ -160,17 +169,25 @@ func (p *Parser) forEachJSON(fn func(Record) error) error {
 }
 
 func (p *Parser) forEachJSONL(fn func(Record) error) error {
-	decoder := json.NewDecoder(p.file)
+	scanner := bufio.NewScanner(p.file)
 
-	for decoder.More() {
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) == 0 {
+			continue
+		}
 		var record Record
-		if err := decoder.Decode(&record); err != nil {
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			return fmt.Errorf("failed to parse JSONL record: %w", err)
 		}
 
 		if err := fn(record); err != nil {
 			return err
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading JSONL file: %w", err)
 	}
 
 	return nil

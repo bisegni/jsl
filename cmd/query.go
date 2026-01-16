@@ -9,11 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	QueryPath   string
-	QueryPretty bool
-)
-
 var queryCmd = &cobra.Command{
 	Use:   "query [file|JSON|-] [path]",
 	Short: "Query JSON/JSONL file with path expression",
@@ -34,7 +29,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Handle different argument patterns
 		var filename, path string
-		
+
 		if len(args) == 0 {
 			// No args, read from stdin
 			filename = "-"
@@ -56,15 +51,15 @@ Examples:
 			filename = args[0]
 			path = args[1]
 		}
-		
-		return RunQuery(filename, path, QueryPretty)
+
+		return RunQuery(filename, path, QueryPretty, QueryExtract, QuerySelect)
 	},
 }
 
 func init() {
 }
 
-func RunQuery(filename string, queryPath string, queryPretty bool) error {
+func RunQuery(filename string, queryPath string, queryPretty bool, queryExtract bool, selectFields []string) error {
 	p, err := parser.NewParser(filename)
 	if err != nil {
 		return err
@@ -78,13 +73,25 @@ func RunQuery(filename string, queryPath string, queryPretty bool) error {
 
 	q := query.NewQuery(queryPath)
 
-	// If path is "." or empty, return all records
+	// If path is "." or empty, apply selection to all records
 	if queryPath == "" || queryPath == "." {
+		output := make([]interface{}, len(records))
+		for i, record := range records {
+			if len(selectFields) > 0 {
+				output[i] = applySelection(record, selectFields)
+			} else {
+				output[i] = record
+			}
+		}
+
 		encoder := json.NewEncoder(os.Stdout)
 		if queryPretty {
 			encoder.SetIndent("", "  ")
 		}
-		return encoder.Encode(records)
+		if len(output) == 1 && !queryExtract {
+			return encoder.Encode(output[0])
+		}
+		return encoder.Encode(output)
 	}
 
 	results := make([]interface{}, 0, len(records))
@@ -107,8 +114,73 @@ func RunQuery(filename string, queryPath string, queryPretty bool) error {
 		return nil
 	}
 
+	if queryExtract {
+		extracted := make([]interface{}, 0)
+		for _, res := range results {
+			switch v := res.(type) {
+			case map[string]interface{}:
+				for k, val := range v {
+					if len(selectFields) > 0 {
+						item := applySelection(val, selectFields)
+						extracted = append(extracted, item)
+					} else {
+						extracted = append(extracted, map[string]interface{}{k: val})
+					}
+				}
+			case []interface{}:
+				for _, item := range v {
+					if len(selectFields) > 0 {
+						item = applySelection(item, selectFields)
+					}
+					extracted = append(extracted, item)
+				}
+			default:
+				if len(selectFields) > 0 {
+					res = applySelection(res, selectFields)
+				}
+				extracted = append(extracted, res)
+			}
+		}
+		return encoder.Encode(extracted)
+	}
+
+	if len(selectFields) > 0 {
+		for i, res := range results {
+			results[i] = applySelection(res, selectFields)
+		}
+	}
+
 	if len(results) == 1 {
 		return encoder.Encode(results[0])
 	}
 	return encoder.Encode(results)
+}
+
+func applySelection(val interface{}, fields []string) interface{} {
+	switch v := val.(type) {
+	case parser.Record:
+		newMap := make(parser.Record)
+		for _, f := range fields {
+			if val, ok := v[f]; ok {
+				newMap[f] = val
+			}
+		}
+		return newMap
+	case map[string]interface{}:
+		newMap := make(map[string]interface{})
+		for _, f := range fields {
+			if val, ok := v[f]; ok {
+				newMap[f] = val
+			}
+		}
+		return newMap
+	case []interface{}:
+		newSlice := make([]interface{}, len(v))
+		for i, item := range v {
+			newSlice[i] = applySelection(item, fields)
+		}
+		return newSlice
+	default:
+		return val
+	}
 }

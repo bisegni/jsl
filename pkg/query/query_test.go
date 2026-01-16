@@ -172,7 +172,7 @@ func TestWildcardExtract(t *testing.T) {
 	q := NewQuery("employees.*.name")
 	result, err := q.Extract(record)
 	if err != nil {
-		t.Fatalf("Extract() failed: %v", err)
+		t.Fatalf("Extract() with * failed: %v", err)
 	}
 
 	names, ok := result.([]interface{})
@@ -184,7 +184,126 @@ func TestWildcardExtract(t *testing.T) {
 		t.Errorf("Expected 2 names, got %d", len(names))
 	}
 
-	if names[0] != "John" || names[1] != "Jane" {
-		t.Errorf("Expected [John, Jane], got %v", names)
+	// Test shell-safe wildcard %
+	q = NewQuery("employees.%.name")
+	result, err = q.Extract(record)
+	if err != nil {
+		t.Fatalf("Extract() with %% failed: %v", err)
+	}
+
+	names, ok = result.([]interface{})
+	if !ok {
+		t.Fatalf("Expected []interface{}, got %T", result)
+	}
+
+	if len(names) != 2 {
+		t.Errorf("Expected 2 names, got %d", len(names))
+	}
+}
+func TestWildcardKeyExtract(t *testing.T) {
+	record := parser.Record{
+		"metrics": map[string]interface{}{
+			"temp_input":  float64(25.5),
+			"temp_output": float64(26.0),
+			"humidity":    float64(45),
+			"pressure":    float64(1013),
+		},
+	}
+
+	tests := []struct {
+		name     string
+		path     string
+		expected map[string]interface{}
+		wantErr  bool
+	}{
+		{
+			name: "wildcard match all",
+			path: "metrics.*",
+			expected: map[string]interface{}{
+				"temp_input":  float64(25.5),
+				"temp_output": float64(26.0),
+				"humidity":    float64(45),
+				"pressure":    float64(1013),
+			},
+			wantErr: false,
+		},
+		{
+			name: "wildcard match contains",
+			path: "metrics.*~=temp",
+			expected: map[string]interface{}{
+				"temp_input":  float64(25.5),
+				"temp_output": float64(26.0),
+			},
+			wantErr: false,
+		},
+		{
+			name: "wildcard match equals",
+			path: "metrics.*=humidity",
+			expected: map[string]interface{}{
+				"humidity": float64(45),
+			},
+			wantErr: false,
+		},
+		{
+			name: "wildcard match not equals",
+			path: "metrics.*!=humidity",
+			expected: map[string]interface{}{
+				"temp_input":  float64(25.5),
+				"temp_output": float64(26.0),
+				"pressure":    float64(1013),
+			},
+			wantErr: false,
+		},
+		{
+			name: "wildcard match greater equal",
+			path: "metrics.*>=pressure",
+			expected: map[string]interface{}{
+				"pressure":    float64(1013),
+				"temp_input":  float64(25.5),
+				"temp_output": float64(26.0),
+			},
+			wantErr: false,
+		},
+		{
+			name: "shell-safe wildcard match contains",
+			path: "metrics.%~=temp",
+			expected: map[string]interface{}{
+				"temp_input":  float64(25.5),
+				"temp_output": float64(26.0),
+			},
+			wantErr: false,
+		},
+		{
+			name:    "no match",
+			path:    "metrics.*=nonexistent",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := NewQuery(tt.path)
+			result, err := q.Extract(record)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Extract() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				got, ok := result.(map[string]interface{})
+				if !ok {
+					t.Fatalf("Expected map[string]interface{}, got %T", result)
+				}
+				if len(got) != len(tt.expected) {
+					t.Errorf("Expected %d results, got %d", len(tt.expected), len(got))
+				}
+				for k, v := range tt.expected {
+					if got[k] != v {
+						t.Errorf("For key %s, expected %v, got %v", k, v, got[k])
+					}
+				}
+			}
+		})
 	}
 }

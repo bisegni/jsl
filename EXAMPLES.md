@@ -4,20 +4,23 @@ This file demonstrates common usage patterns and examples for the jsl command-li
 
 ## Quick Start Examples
 
-### Most Common Patterns (New Concise Syntax)
+### Most Common Patterns (Unified Syntax)
 
 ```bash
 # Query fields from a file
 jsl examples/users.json .name
 
 # Filter with expressions
-jsl filter examples/users.json 'age>28'
+jsl examples/users.json 'age>28'
+
+# Extract mode (flattened output line-by-line)
+jsl -e examples/users.json .name
 
 # Query from stdin
 cat examples/users.json | jsl .name
 
 # Filter from stdin
-cat examples/users.json | jsl filter 'age>=30'
+cat examples/users.json | jsl 'age>=30'
 
 # Inline JSON testing
 jsl '{"name":"Alice","age":30}' .name
@@ -26,45 +29,76 @@ jsl '{"name":"Alice","age":30}' .name
 ## Basic Query Examples
 
 ### Query all records
-```bash
-# New concise syntax
-jsl examples/users.json .
 
-# Traditional syntax
-jsl query examples/users.json --path .
+```bash
+jsl examples/users.json .
 ```
 
 ### Extract a single field from all records
-```bash
-# New concise syntax (recommended)
-jsl examples/users.json .name
 
-# Traditional syntax
-jsl query examples/users.json --path name
+```bash
+jsl examples/users.json .name
 # Output: ["Alice", "Bob", "Charlie", "Diana"]
 ```
 
 ### Extract nested fields
-```bash
-# New concise syntax
-jsl examples/company.json .location.city
 
-# Traditional syntax
-jsl query examples/company.json --path location.city
+```bash
+jsl examples/company.json .location.city
 # Output: "Austin"
 ```
 
 ### Extract from arrays with wildcard
-```bash
-# New concise syntax
-jsl examples/company.json .employees.*.name
 
-# Traditional syntax
-jsl query examples/company.json --path employees.*.name
+```bash
+jsl examples/company.json .employees.*.name
 # Output: ["John", "Jane", "Mike"]
 ```
 
+### Wildcard Key Filtering (New Featured)
+
+You can filter keys within an object using wildcards and operators.
+
+> [!TIP]
+> Use the **%** character as a shell-safe wildcard to avoid the need for quotes. If you use **\***, you must wrap the path in quotes to prevent shell expansion.
+
+````bash
+# Shell-safe wildcard (no quotes needed)
+jsl examples/sensors.jsonl .sensors.%~=temp
+
+# Standard wildcard (quotes required)
+jsl examples/sensors.jsonl '.sensors.*~=humidity'
+
+# Match all keys in an object
+jsl examples/sensors.jsonl .sensors.%
+
+### Deep Wildcard Filtering (Nested Objects)
+Query files with complex nested structures by applying wildcard filters at any level.
+
+```bash
+# Filter sensors by a nested metadata field
+jsl examples/sensors.jsonl '.sensors.*.metadata.type=temp'
+
+# Extract only the values of sensors in the living room
+jsl -e examples/sensors.jsonl '.sensors.*.metadata.room=living.value'
+
+### Field Selection
+Use `--select` (or `-s`) to choose which fields appear in the final output. This is especially useful for limiting output size or focusing on specific data points.
+
+```bash
+# Selection at top level
+jsl examples/sensors.jsonl . --select timestamp
+
+# Selection with extraction (automatically drops dynamic keys)
+jsl -e examples/sensors.jsonl '.sensors.*' --select value,metadata
+````
+
+```
+
+```
+
 ### Extract specific array element
+
 ```bash
 jsl examples/company.json .employees.0.salary
 # Output: 80000
@@ -72,58 +106,57 @@ jsl examples/company.json .employees.0.salary
 
 ## Filter Examples
 
-### Numeric comparisons with new expression syntax
+### Numeric comparisons with unified syntax
+
 ```bash
-# Greater than (note: use quotes to protect shell special characters)
-jsl filter examples/users.json 'age>28'
+# Greater than (note: use quotes to protect shell special characters like >)
+jsl examples/users.json 'age>28'
 
 # Greater than or equal
-jsl filter examples/users.json 'age>=30'
+jsl examples/users.json 'age>=30'
 
 # Less than or equal
-jsl filter examples/users.json 'age<=30'
+jsl examples/users.json 'age<=30'
 
 # Equal to
-jsl filter examples/users.json 'id=2'
+jsl examples/users.json 'id=2'
 
 # Not equal
-jsl filter examples/users.json 'age!=25'
-```
-
-### Traditional flag syntax (still supported)
-```bash
-jsl filter examples/users.json --field age --op ">" --value 28
-jsl filter examples/users.json --field age --op "<=" --value 30
+jsl examples/users.json 'age!=25'
 ```
 
 ### Boolean filters
+
 ```bash
-jsl filter examples/users.json 'active=true'
+jsl examples/users.json 'active=true'
 ```
 
 ### String operations
+
 ```bash
 # Contains substring (using ~= operator)
-jsl filter examples/users.json 'name~=li'
+jsl examples/users.json 'name~=li'
 
 # Exact match
-jsl filter examples/users.json 'city=Boston'
+jsl examples/users.json 'city=Boston'
 ```
 
 ### Output as JSONL
+
 ```bash
-jsl filter examples/users.json 'age>25' --format jsonl
+jsl examples/users.json 'age>25' --format jsonl
 ```
 
 ## Stdin Examples
 
 ### Reading from pipes
+
 ```bash
 # Query from stdin
 cat examples/users.json | jsl .name
 
 # Filter from stdin
-cat examples/users.json | jsl filter 'age>25'
+cat examples/users.json | jsl 'age>25'
 
 # Format from stdin
 cat examples/users.json | jsl format
@@ -136,17 +169,19 @@ cat examples/users.json | jsl validate
 ```
 
 ### Working with curl and APIs
+
 ```bash
 # Query API results
 curl -s https://api.example.com/users | jsl .data.*.email
 
 # Filter API results
-curl -s https://api.example.com/users | jsl filter 'status=active'
+curl -s https://api.example.com/users | jsl 'status=active'
 ```
 
 ## Inline JSON Examples
 
 ### Quick testing without files
+
 ```bash
 # Simple object
 jsl '{"name":"Alice","age":30}' .name
@@ -161,12 +196,13 @@ jsl '{"user":{"profile":{"name":"Alice"}}}' .user.profile.name
 # Output: "Alice"
 
 # Filtering inline JSON
-jsl filter '[{"age":25},{"age":30},{"age":35}]' 'age>=30'
+jsl '[{"age":25},{"age":30},{"age":35}]' 'age>=30'
 ```
 
 ## Format Examples
 
 ### Pretty-print JSON
+
 ```bash
 # From file
 jsl format examples/users.json
@@ -179,11 +215,13 @@ echo '{"name":"Alice"}' | jsl format
 ```
 
 ### Pretty-print JSONL
+
 ```bash
 jsl format examples/users.jsonl
 ```
 
 ### Change output format
+
 ```bash
 # Convert to JSONL on the fly
 jsl format examples/users.json --output jsonl
@@ -195,6 +233,7 @@ cat examples/users.json | jsl format --output jsonl
 ## Convert Examples
 
 ### JSON to JSONL
+
 ```bash
 # From file
 jsl convert examples/users.json --to jsonl > /tmp/users.jsonl
@@ -204,11 +243,13 @@ cat examples/users.json | jsl convert --to jsonl > /tmp/users.jsonl
 ```
 
 ### JSONL to JSON
+
 ```bash
 jsl convert examples/users.jsonl --to json > /tmp/users.json
 ```
 
 ### Convert without pretty printing
+
 ```bash
 jsl convert examples/users.json --to jsonl --pretty=false > /tmp/compact.jsonl
 ```
@@ -216,6 +257,7 @@ jsl convert examples/users.json --to jsonl --pretty=false > /tmp/compact.jsonl
 ## Statistics Examples
 
 ### Show file statistics
+
 ```bash
 # From file
 jsl stats examples/users.json
@@ -227,7 +269,7 @@ cat examples/users.json | jsl stats
 # File: examples/users.json
 # Format: JSON
 # Total records: 4
-# 
+#
 # Fields:
 #   age:
 #     number: 4 (100.0%)
@@ -239,6 +281,7 @@ cat examples/users.json | jsl stats
 ## Validation Examples
 
 ### Validate JSON file
+
 ```bash
 # From file
 jsl validate examples/users.json
@@ -250,107 +293,109 @@ echo '{"valid":"json"}' | jsl validate
 ```
 
 ### Validate JSONL file
+
 ```bash
 jsl validate examples/users.jsonl
 # Output: ✅ Valid JSONL file with 4 record(s)
 ```
 
 ### Validate invalid file
+
 ```bash
 echo '{"invalid": json}' > /tmp/bad.json
 jsl validate /tmp/bad.json
 # Output: ❌ Validation failed: ...
 ```
 
-## Pipeline Examples (New Concise Syntax)
+## Pipeline Examples (Unified Syntax)
 
 ### Filter and then query
-```bash
-# New concise syntax (recommended)
-jsl filter examples/users.json 'age>25' | jsl .name
 
-# Traditional syntax
-jsl filter examples/users.json --field age --op ">" --value 25 | jsl query - .name
+```bash
+# Unified syntax
+jsl examples/users.json 'age>25' | jsl .name
 ```
 
 ### Query and then convert format
-```bash
-# New concise syntax
-jsl examples/users.json . | jsl convert --to jsonl > /tmp/all_users.jsonl
 
-# Traditional syntax
-jsl query examples/users.json --path . | jsl convert - --to jsonl > /tmp/all_users.jsonl
+```bash
+# Unified syntax
+jsl examples/users.json . | jsl convert --to jsonl > /tmp/all_users.jsonl
 ```
 
 ### Complex pipeline
-```bash
-# Filter active users, extract names, and save as JSONL (new syntax)
-jsl filter examples/users.json 'active=true' | jsl .name | jsl convert --to jsonl > /tmp/active_names.jsonl
 
-# Traditional syntax
-jsl filter examples/users.json --field active --op "=" --value true | \
-  jsl query - --path name | \
-  jsl convert - --to jsonl > /tmp/active_names.jsonl
+```bash
+# Filter active users, extract names, and save as JSONL
+jsl examples/users.json 'active=true' | jsl .name | jsl convert --to jsonl > /tmp/active_names.jsonl
 ```
 
 ### Chaining multiple filters
+
 ```bash
 # Filter by age, then by city
-jsl filter examples/users.json 'age>25' | jsl filter 'city~=New'
+jsl examples/users.json 'age>25' | jsl 'city~=New'
 ```
 
 ## Working with Standard Input
 
-All commands now support reading from stdin automatically (no need for explicit filenames):
+All commands now support reading from stdin automatically:
 
 ```bash
 # Query from stdin
 cat examples/users.json | jsl .name
 
-curl https://api.example.com/users | jsl filter /dev/stdin --field age --op ">" --value 25
+# Filter from stdin
+curl -s https://api.example.com/users | jsl 'age>25'
 ```
 
 ## Integration with Other Tools
 
 ### With jq
+
 ```bash
 # Use jsl for initial filtering, then jq for complex transformations
-jsl filter examples/users.json --field age --op ">" --value 25 | \
-  jq '.[] | {name, age}'
+jsl examples/users.json 'age>25' | jq '.[] | {name, age}'
 ```
 
 ### With grep
+
 ```bash
 # Extract emails and search for domain
-jsl query examples/users.json --path email | jq -r '.[]' | grep "example.com"
+jsl examples/users.json .email | jq -r '.[]' | grep "example.com"
 ```
 
 ### With awk
+
 ```bash
 # Get names and format with awk
-jsl query examples/users.json --path name | jq -r '.[]' | awk '{print "User: " $0}'
+jsl examples/users.json .name | jq -r '.[]' | awk '{print "User: " $0}'
 ```
 
 ## Advanced Patterns
 
 ### Extract multiple fields (using jq)
+
 ```bash
-jsl query examples/users.json --path . | jq '.[] | {name, age}'
+jsl examples/users.json . | jq '.[] | {name, age}'
 ```
 
 ### Count filtered records
+
 ```bash
-jsl filter examples/users.json --field active --op "=" --value true | jq 'length'
+jsl examples/users.json 'active=true' | jq 'length'
 ```
 
 ### Sort by field (using jq)
+
 ```bash
-jsl query examples/users.json --path . | jq 'sort_by(.age)'
+jsl examples/users.json . | jq 'sort_by(.age)'
 ```
 
 ### Group by field (using jq)
+
 ```bash
-jsl query examples/users.json --path . | jq 'group_by(.city)'
+jsl examples/users.json . | jq 'group_by(.city)'
 ```
 
 ## Performance Tips
@@ -366,62 +411,70 @@ jsl query examples/users.json --path . | jq 'group_by(.city)'
 ## Common Patterns
 
 ### Extract unique values
+
 ```bash
-jsl query examples/users.json --path city | jq -r '.[]' | sort -u
+jsl examples/users.json .city | jq -r '.[]' | sort -u
 ```
 
 ### Count records by field
+
 ```bash
-jsl query examples/users.json --path city | jq -r '.[]' | sort | uniq -c
+jsl examples/users.json .city | jq -r '.[]' | sort | uniq -c
 ```
 
 ### Find min/max values
+
 ```bash
 # Maximum age
-jsl query examples/users.json --path age | jq 'max'
+jsl examples/users.json .age | jq 'max'
 
 # Minimum age
-jsl query examples/users.json --path age | jq 'min'
+jsl examples/users.json .age | jq 'min'
 ```
 
 ### Average calculation
+
 ```bash
-jsl query examples/users.json --path age | jq 'add/length'
+jsl examples/users.json .age | jq 'add/length'
 ```
 
 ## Error Handling
 
 ### Check if file is valid before processing
+
 ```bash
 if jsl validate data.json 2>/dev/null; then
-  jsl query data.json --path name
+  jsl data.json .name
 else
   echo "Invalid JSON file"
 fi
 ```
 
 ### Handle missing fields gracefully
+
 ```bash
-# The query command skips records where the path doesn't exist
-jsl query examples/users.json --path optional_field
+# The tool skips records where the path doesn't exist
+jsl examples/users.json .optional_field
 ```
 
 ## Shell Integration
 
 ### Bash function wrapper
+
 ```bash
 # Add to ~/.bashrc
 jslq() {
-  jsl query "$1" --path "$2"
+  jsl "$1" "$2"
 }
 
 # Usage
-jslq examples/users.json name
+jslq examples/users.json .name
 ```
 
 ### Alias for common operations
+
 ```bash
-alias jsl-names='jsl query --path name'
+alias jsl-names='jsl .name'
 alias jsl-validate='jsl validate'
 
 # Usage

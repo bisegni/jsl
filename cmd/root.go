@@ -3,7 +3,15 @@ package cmd
 import (
 	"os"
 
+	"github.com/bisegni/jsl/pkg/query"
 	"github.com/spf13/cobra"
+)
+
+var (
+	QueryPath    string
+	QueryPretty  bool
+	QueryExtract bool
+	QuerySelect  []string
 )
 
 var rootCmd = &cobra.Command{
@@ -29,30 +37,42 @@ Examples:
 		stat, _ := os.Stdin.Stat()
 		hasStdin := (stat.Mode() & os.ModeCharDevice) == 0
 
+		var filename, expression string
+
 		if len(args) == 0 {
 			if hasStdin {
-				// Data is being piped to stdin
-				return RunQuery("-", QueryPath, QueryPretty)
+				filename = "-"
+				expression = QueryPath
+			} else {
+				return cmd.Help()
 			}
-			return cmd.Help()
-		}
-		
-		// One argument
-		if len(args) == 1 {
+		} else if len(args) == 1 {
 			arg := args[0]
-			// If we have stdin and arg looks like a path (starts with .), use it as path
-			// Note: This assumes paths start with '.'. Other patterns will be treated as filenames.
-			if hasStdin && len(arg) > 0 && arg[0] == '.' {
-				return RunQuery("-", arg, QueryPretty)
+			if hasStdin {
+				filename = "-"
+				expression = arg
+			} else {
+				// If not stdin, it could be a filename (default query) or
+				// if we have flags, maybe an expression?
+				// Usually with 1 arg and no stdin, it's a filename.
+				filename = arg
+				expression = QueryPath
 			}
-			// Otherwise it's a filename
-			return RunQuery(arg, QueryPath, QueryPretty)
+		} else {
+			// Two arguments: filename and (path or expression)
+			filename = args[0]
+			expression = args[1]
 		}
-		
-		// Two arguments: filename and path
-		filename := args[0]
-		path := args[1]
-		return RunQuery(filename, path, QueryPretty)
+
+		// Intelligent routing
+		if query.IsFilterExpression(expression) {
+			expr := query.ParseFilterExpression(expression)
+			if expr != nil {
+				return RunFilter(filename, expr.Field, expr.Operator, expr.Value, QueryPretty, QueryExtract, QuerySelect, "json")
+			}
+		}
+
+		return RunQuery(filename, expression, QueryPretty, QueryExtract, QuerySelect)
 	},
 }
 
@@ -63,9 +83,10 @@ func Execute() error {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&QueryPath, "path", "p", ".", "Path to extract (e.g., .user.name)")
 	rootCmd.PersistentFlags().BoolVar(&QueryPretty, "pretty", true, "Pretty print output")
+	rootCmd.PersistentFlags().BoolVarP(&QueryExtract, "extract", "e", false, "Extract mode (flattened line-by-line output)")
+	rootCmd.PersistentFlags().StringSliceVarP(&QuerySelect, "select", "s", []string{}, "Select specific fields to include in output (e.g., value,metadata)")
 
-	rootCmd.AddCommand(queryCmd)
-	rootCmd.AddCommand(filterCmd)
+	// Subcommands that still make sense as separate actions
 	rootCmd.AddCommand(formatCmd)
 	rootCmd.AddCommand(convertCmd)
 	rootCmd.AddCommand(statsCmd)
