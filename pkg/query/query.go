@@ -56,7 +56,15 @@ func parsePath(path string) []string {
 
 			for _, op := range operators {
 				if strings.Contains(segment, op) {
-					isSeparator = false
+					// Exception: if the previous part was a wildcard, we MUST split here
+					// regardless of operators.
+					// e.g. "foo.*.value>20" -> "foo", "*", "value>20"
+					// If we don't split, we get "foo", "*.value>20" which is wrong.
+					if current.String() == "*" || current.String() == "%" {
+						isSeparator = true
+					} else {
+						isSeparator = false
+					}
 					break
 				}
 			}
@@ -434,6 +442,14 @@ func ParseFilterExpression(expr string) *FilterExpr {
 			value := strings.TrimSpace(expr[idx+len(op):])
 
 			if field != "" && value != "" {
+				// Strip quotes if present
+				if len(value) >= 2 {
+					if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
+						(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+						value = value[1 : len(value)-1]
+					}
+				}
+
 				// Convert ~= to contains for internal representation
 				internalOp := op
 				if op == "~=" {
