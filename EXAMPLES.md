@@ -42,6 +42,30 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  
  # Complex Filtering: Select rows where a specific room has sensors
  jsl examples/sensors.jsonl "SELECT * WHERE sensors.*.room = 'kitchen'"
+
+ ### Advanced Projection
+ 
+ **Aliases (`AS`)**:
+ Use `AS` to rename fields or create clean keys for complex paths.
+ 
+ ```bash
+ jsl examples/sensors.jsonl "SELECT sensors.*.type='temp' AS matched_sensors"
+ # Output: [{"matched_sensors": [...]}, ...]
+ ```
+ 
+ **Matched Element Projection (`$`)**:
+ Use `$` in the SELECT path to project ONLY the array elements that partially matched the WHERE clause.
+ This allows you to separate the filter logic from the projection logic.
+ 
+ ```bash
+ # Select only the NAMES of the sensors that are of type 'temp'
+ jsl examples/sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type = 'temp'"
+ # Output: [{"sensors.$.name": ["sensor_01", "sensor_03"]}, ...]
+ 
+ # Combine with Alias for clean output
+ jsl examples/sensors.jsonl "SELECT sensors.$.name AS temp_sensor_names WHERE sensors.*.type = 'temp'"
+ # Output: [{"temp_sensor_names": ["sensor_01", "sensor_03"]}, ...]
+ ```
  ```
 
  ### Select All (Wildcard)

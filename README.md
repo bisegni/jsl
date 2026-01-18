@@ -72,6 +72,13 @@ jsl users.json "SELECT name, city WHERE age > 25"
 
 # Select all fields with condition
 jsl users.json "SELECT * WHERE active = true"
+
+# Advanced Projection
+# Use aliases for cleaner output
+jsl sensors.jsonl "SELECT sensors.*.type='temp' AS temp_sensors"
+
+# Select only matched array elements using $
+jsl sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type='temp'"
 ```
 
 #### 2. Format - Pretty Print
