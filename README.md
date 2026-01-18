@@ -6,7 +6,10 @@ A powerful command-line tool written in Go for querying, filtering, and manipula
 
 - 🔍 **Query**: Extract specific fields using dot-notation paths
 - 🔎 **Filter**: Filter records with simple expression syntax (e.g., `age>28`)
-- 🎨 **Format**: Pretty-print JSON/JSONL files
+- � **Field Selection**: Choose specific fields for output with `--select` (e.g., `-s name,age`)
+- 📦 **Extract Mode**: Flatten nested results or iterate through collections with `--extract`
+- 🃏 **Wildcard Keys**: Filter keys within objects using `*` or shell-safe `%` (e.g., `.sensors.%~=temp`)
+- �🎨 **Format**: Pretty-print JSON/JSONL files
 - 🔄 **Convert**: Convert between JSON and JSONL formats
 - 📊 **Stats**: Display file statistics and schema information
 - ✅ **Validate**: Validate JSON/JSONL file syntax
@@ -14,6 +17,12 @@ A powerful command-line tool written in Go for querying, filtering, and manipula
 - ⚡ **Inline JSON**: Pass JSON strings directly as arguments
 
 ## Installation
+
+### Using Go Install
+
+```bash
+go install github.com/bisegni/jsl@latest
+```
 
 ### From Source
 
@@ -24,11 +33,6 @@ go build -o jsl
 sudo mv jsl /usr/local/bin/  # Optional: install globally
 ```
 
-### Using Go Install
-
-```bash
-go install github.com/bisegni/jsl@latest
-```
 To install the binary to a standard macOS/Linux path (e.g., /usr/local/bin), set GOBIN globally: `go env -w GOBIN=/usr/local/bin`. Then run the install command above.
 
 ## Quick Start
@@ -49,79 +53,78 @@ jsl '{"name":"Alice","age":30}' .name
 
 ## Usage
 
-### Basic Commands
+### Basic Syntax
 
 ```bash
-jsl [command] [file|JSON|-] [arguments]
+jsl [command] [file|JSON|-] [path|expression] [flags]
 ```
 
-### Commands
+If no command is provided, `jsl` defaults to querying the specified file or stdin.
+
+### Core Functionality
 
 #### 1. Query - Extract Fields
 
 Extract specific fields from JSON/JSONL files using dot-notation paths.
 
-**New concise syntax:**
 ```bash
-# From file
+# Basic field access
 jsl users.json .name
+
+# Nested field access
 jsl company.json .location.city
 
-# From stdin
-cat users.json | jsl .name
-echo '{"name":"Alice"}' | jsl .name
+# Array access by index
+jsl company.json .employees.0.name
 
-# Inline JSON
-jsl '{"user":{"name":"Alice"}}' .user.name
-
-# Using the query subcommand (alternative)
-jsl query users.json .name
-```
-
-**Traditional syntax (still supported):**
-```bash
-jsl query users.json --path name
-jsl query company.json --path location.city
-```
-
-**Examples:**
-```bash
-# Extract nested fields
+# Wildcard array access (extracts from all elements)
 jsl company.json .employees.*.name
-
-# Extract specific array element
-jsl company.json .employees.0.salary
-
-# Get all records (default)
-jsl users.json .
 ```
 
 **Flags:**
-- `-p, --path`: Path expression to extract (default: ".")
+
+- `-p, --path`: Path expression to extract (alternative to positional argument)
 - `--pretty`: Pretty print output (default: true)
+- `-e, --extract`: **Extract Mode** - Flatten object keys or array elements into a list of records
+- `-s, --select`: **Field Selection** - Comma-separated list of fields to include in the output
 
-#### 2. Filter - Filter Records
+#### 2. Advanced Querying & Wildcards
 
-Filter records based on field conditions with a simple expression syntax.
+Filter keys within objects using wildcards and operators.
+
+> [!TIP]
+> Use the `%` character as a shell-safe wildcard to avoid the need for quotes. If you use `*`, you must wrap the path in quotes to prevent shell expansion.
+
+```bash
+# Shell-safe wildcard: Match keys containing "temp"
+jsl sensors.jsonl .sensors.%~=temp
+
+# Match all keys in an object
+jsl sensors.jsonl .sensors.%
+
+# Deep wildcard filtering with conditions
+jsl sensors.jsonl '.sensors.*.metadata.room=living'
+```
+
+#### 3. Filter - Filter Records
+
+Filter records based on field conditions.
 
 **New concise expression syntax:**
-```bash
-# From file
-jsl filter users.json 'age>28'
-jsl filter users.json 'name~=Alice'  # contains
-jsl filter users.json 'status=active'
 
-# From stdin
-cat users.json | jsl filter 'age>=30'
+```bash
+# Filter by numeric comparison
+jsl users.json 'age>28'
+
+# Filter by string match (contains)
+jsl users.json 'name~=Alice'
+
+# Filter by exact match
+jsl users.json 'status=active'
 ```
 
-**Traditional flag syntax (still supported):**
-```bash
-jsl filter users.json --field age --op ">" --value 28
-jsl filter users.json --field name --op contains --value Alice
-```
+**Unified Syntax Operators:**
 
-**Expression Operators:**
 - `=`: Equal to
 - `!=`: Not equal to
 - `>`: Greater than
@@ -130,39 +133,28 @@ jsl filter users.json --field name --op contains --value Alice
 - `<=`: Less than or equal to
 - `~=`: Contains (for strings)
 
-**Note:** Shell special characters like `>`, `<` need to be quoted: `'age>28'`
+#### 4. Field Selection & Extract Mode
 
-**Flags:**
-- `-f, --field`: Field path to filter on
-- `-o, --op`: Comparison operator (default: "=")
-- `-v, --value`: Value to compare against
-- `--format`: Output format (json or jsonl, default: "json")
-- `--pretty`: Pretty print output (default: true)
+Combine query paths with selection and extraction for powerful data manipulation.
 
-#### 3. Format - Pretty Print
+```bash
+# Selection: Extract specific fields from the results
+jsl sensors.jsonl . --select timestamp,id
+
+# Extraction: Flatten nested objects into individual records
+jsl -e sensors.jsonl '.sensors.*' --select value,metadata
+```
+
+#### 5. Format - Pretty Print
 
 Format and pretty-print JSON/JSONL files.
 
 ```bash
-# Format JSON file
 jsl format data.json
-
-# Format from stdin
-cat data.json | jsl format
-echo '{"name":"Alice"}' | jsl format
-
-# Format JSONL file
-jsl format data.jsonl
-
-# Output as JSONL
-jsl format data.json --output jsonl
+jsl format data.jsonl --output jsonl
 ```
 
-**Flags:**
-- `--pretty`: Pretty print output (default: true)
-- `-o, --output`: Output format (json or jsonl, auto-detect if not specified)
-
-#### 4. Convert - Format Conversion
+#### 6. Convert - Format Conversion
 
 Convert between JSON and JSONL formats.
 
@@ -172,152 +164,50 @@ jsl convert users.json --to jsonl > users.jsonl
 
 # Convert JSONL to JSON
 jsl convert users.jsonl --to json > users.json
-
-# From stdin
-cat users.json | jsl convert --to jsonl
 ```
 
-**Flags:**
-- `-t, --to`: Target format (json or jsonl, required)
-- `--pretty`: Pretty print output (default: true)
-
-#### 5. Stats - Show Statistics
-
-Display statistics about JSON/JSONL files.
+#### 7. Stats & Validate
 
 ```bash
-# From file
+# Show file statistics and schema info
 jsl stats users.json
 
-# From stdin
-cat users.json | jsl stats
-```
-
-**Output includes:**
-- File format (JSON or JSONL)
-- Total record count
-- Field names and types
-- Type distribution per field
-
-#### 6. Validate - Syntax Validation
-
-Validate JSON/JSONL file syntax.
-
-```bash
-# From file
+# Validate syntax
 jsl validate users.json
-jsl validate users.jsonl
-
-# From stdin
-cat users.json | jsl validate
-```
-
-## Examples
-
-### Working with User Data
-
-```bash
-# Sample users.json
-[
-  {"id": 1, "name": "Alice", "age": 30, "city": "New York"},
-  {"id": 2, "name": "Bob", "age": 25, "city": "San Francisco"},
-  {"id": 3, "name": "Charlie", "age": 35, "city": "Boston"}
-]
-
-# Get all names (new concise syntax)
-jsl users.json .name
-# Output: ["Alice", "Bob", "Charlie"]
-
-# Filter users over 28 (new concise syntax)
-jsl filter users.json 'age>28'
-
-# Get statistics
-jsl stats users.json
-
-# Convert to JSONL
-jsl convert users.json --to jsonl > users.jsonl
-```
-
-### Working with Nested Data
-
-```bash
-# Sample company.json
-{
-  "company": "TechCorp",
-  "employees": [
-    {"name": "John", "role": "Engineer", "salary": 80000},
-    {"name": "Jane", "role": "Manager", "salary": 95000}
-  ],
-  "location": {"city": "Austin", "state": "TX"}
-}
-
-# Extract all employee names (new concise syntax)
-jsl company.json .employees.*.name
-# Output: ["John", "Jane"]
-
-# Get company location (new concise syntax)
-jsl company.json .location.city
-# Output: "Austin"
-```
-
-### Chaining Commands with Stdin
-
-```bash
-# Filter and convert in one pipeline (new concise syntax)
-jsl filter users.json 'age>25' | jsl convert --to jsonl > filtered_users.jsonl
-
-# Extract names from filtered results (new concise syntax)
-jsl filter users.json 'active=true' | jsl .name
-
-# Quick inline JSON testing
-echo '{"users":[{"name":"Alice","age":30}]}' | jsl .users.*.name
-
-# Fetch from API and query
-curl -s api.example.com/users | jsl .data.*.email
-```
-
-## Input Methods
-
-jsl supports three flexible input methods:
-
-### 1. File Paths
-```bash
-jsl users.json .name
-jsl filter data.json 'age>28'
-```
-
-### 2. Standard Input (stdin)
-```bash
-# Pipe from other commands
-cat users.json | jsl .name
-curl -s api.example.com/data | jsl .items.*.id
-
-# Explicit stdin marker (optional)
-cat users.json | jsl - .name
-```
-
-### 3. Inline JSON
-```bash
-# Quick testing without files
-jsl '{"name":"Alice","age":30}' .name
-jsl '[{"id":1},{"id":2}]' .*.id
 ```
 
 ## Path Expression Syntax
-
-Path expressions use dot notation to navigate JSON structures:
 
 - `.field` - Access object field
 - `.field.nested` - Access nested field
 - `.array.*` - Wildcard to access all array elements
 - `.array.0` - Access specific array element by index
+- `.object.*` - Access all values in an object
+- `.object.%~=pattern` - Wildcard key filtering (shell-safe)
 - `.` - Return entire structure
+
+## Examples
+
+### Complex Pipeline Example
+
+Filter active users, extract their names, and convert the output to JSONL:
+
+```bash
+jsl users.json 'active=true' | jsl .name | jsl convert --to jsonl
+```
+
+### Working with APIs
+
+```bash
+curl -s api.example.com/sensors | jsl '.data.*' --select id,value
+```
 
 ## File Format Detection
 
 jsl automatically detects file format based on extension:
+
 - `.json` - Treated as JSON
-- `.jsonl` - Treated as JSONL (JSON Lines)
+- `.jsonl` / `.ldjson` - Treated as JSONL (JSON Lines)
 
 For files without standard extensions, the tool attempts to parse as JSON first, then falls back to JSONL.
 
