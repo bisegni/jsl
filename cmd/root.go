@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
+	"github.com/bisegni/jsl/pkg/database"
+	"github.com/bisegni/jsl/pkg/engine"
 	"github.com/bisegni/jsl/pkg/query"
 	"github.com/spf13/cobra"
 )
@@ -65,6 +69,21 @@ Examples:
 		}
 
 		// Intelligent routing
+		// Check if it's a SQL-like query
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(expression)), "SELECT") {
+			q, err := engine.ParseQuery(expression)
+			if err != nil {
+				return fmt.Errorf("failed to parse query: %w", err)
+			}
+
+			// Create Input Table
+			inputTable := database.NewJSONTable(filename)
+
+			// Execute
+			executor := engine.NewExecutor()
+			return executor.Execute(q, inputTable, os.Stdout)
+		}
+
 		if query.IsFilterExpression(expression) {
 			expr := query.ParseFilterExpression(expression)
 			if expr != nil {
