@@ -58,7 +58,7 @@ func TestExecutorFilter(t *testing.T) {
 	executor := NewExecutor()
 	// Query: SELECT * WHERE age > 25
 	q := &Query{
-		Fields:    []string{},
+		Fields:    []Field{},
 		Condition: "age > 25",
 	}
 
@@ -92,7 +92,7 @@ func TestExecutorNestedFilter(t *testing.T) {
 
 	executor := NewExecutor()
 	q := &Query{
-		Fields:    []string{},
+		Fields:    []Field{},
 		Condition: "data.value > 10",
 	}
 
@@ -121,7 +121,7 @@ func TestExecutorLeadingDot(t *testing.T) {
 	executor := NewExecutor()
 	// Query with leading dot in WHERE
 	q := &Query{
-		Fields:    []string{},
+		Fields:    []Field{},
 		Condition: ".val > 20",
 	}
 
@@ -134,5 +134,72 @@ func TestExecutorLeadingDot(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "30") {
 		t.Errorf("Expected 30 to be present with leading dot filter, got: %s", out)
+	}
+}
+
+func TestExecutorProjectionOutput(t *testing.T) {
+	row := database.NewJSONRow(map[string]interface{}{
+		"sensors": []interface{}{
+			map[string]interface{}{"name": "A", "type": "temp"},
+			map[string]interface{}{"name": "B", "type": "humidity"},
+		},
+	})
+
+	table := &MockTable{rows: []database.Row{row}}
+
+	exec := NewExecutor()
+
+	// Query: SELECT sensors.*.type='temp' AS temp_sensors
+	q := &Query{
+		Fields: []Field{{Path: "sensors.*.type='temp'", Alias: "temp_sensors"}},
+	}
+
+	var buf bytes.Buffer
+	err := exec.Execute(q, table, &buf)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	output := buf.String()
+	t.Logf("Output: %s", output)
+
+	// Check if key is "temp_sensors"
+	if !strings.Contains(output, "temp_sensors") {
+		t.Errorf("Expected output to contain alias 'temp_sensors', got: %s", output)
+	}
+}
+
+func TestExecutorRefinedProjection(t *testing.T) {
+	row := database.NewJSONRow(map[string]interface{}{
+		"sensors": []interface{}{
+			map[string]interface{}{"name": "A", "type": "temp"},
+			map[string]interface{}{"name": "B", "type": "humidity"},
+		},
+	})
+	table := &MockTable{rows: []database.Row{row}}
+
+	exec := NewExecutor()
+
+	// Query: SELECT sensors.$.name WHERE sensors.*.type='temp'
+	q := &Query{
+		Fields:    []Field{{Path: "sensors.$.name", Alias: "matched_name"}},
+		Condition: "sensors.*.type='temp'",
+	}
+
+	var buf bytes.Buffer
+	err := exec.Execute(q, table, &buf)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	output := buf.String()
+	t.Logf("Output: %s", output)
+
+	// Expect only name "A" (matched temp), not "B" (humidity)
+	if !strings.Contains(output, "A") {
+		t.Error("Expected output to contain 'A'")
+	}
+	if strings.Contains(output, "B") {
+		t.Error("Expected output to NOT contain 'B'")
 	}
 }

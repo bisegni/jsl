@@ -18,6 +18,11 @@ func NewExecutor() *Executor {
 }
 
 func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
+	// Refine query to handle $ operator
+	if q.Condition != "" {
+		refineQuery(q)
+	}
+
 	var currentTable database.Table = input
 
 	// Apply WHERE (Filter)
@@ -125,7 +130,7 @@ func (it *filterIterator) Close() error {
 // ProjectTable wraps a source table and selects specific fields
 type ProjectTable struct {
 	source database.Table
-	fields []string
+	fields []Field
 }
 
 func (t *ProjectTable) Iterate() (database.RowIterator, error) {
@@ -138,7 +143,7 @@ func (t *ProjectTable) Iterate() (database.RowIterator, error) {
 
 type projectIterator struct {
 	source     database.RowIterator
-	fields     []string
+	fields     []Field
 	currentRow database.Row
 }
 
@@ -149,14 +154,14 @@ func (it *projectIterator) Next() bool {
 		newMap := make(map[string]interface{})
 
 		for _, f := range it.fields {
-			val, err := srcRow.Get(f)
+			val, err := srcRow.Get(f.Path)
 			if err == nil {
-				// Simple name for key for now, could support aliases later
-				// If field is "a.b", key becomes "a.b" ? Or just "b"?
-				// Existing ApplySelection logic kept structure depth or flattened?
-				// Looking at original Code: it used parser.Record and kept keys.
-				// Let's use simple key as the field path for now.
-				newMap[f] = val
+				// Use alias if present, otherwise use path
+				key := f.Alias
+				if key == "" {
+					key = f.Path
+				}
+				newMap[key] = val
 			}
 		}
 		it.currentRow = database.NewJSONRow(newMap)

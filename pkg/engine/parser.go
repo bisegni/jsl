@@ -5,15 +5,21 @@ import (
 	"strings"
 )
 
+// Field represents a selected field with optional alias
+type Field struct {
+	Path  string
+	Alias string
+}
+
 // Query represents a parsed SQL-like query
 type Query struct {
-	Fields    []string
+	Fields    []Field
 	Condition string
 }
 
 // ParseQuery parses a SELECT string.
 // Syntax: SELECT <fields> [WHERE <condition>]
-// Example: SELECT name, age WHERE age > 25
+// Example: SELECT name, age AS user_age WHERE age > 25
 func ParseQuery(input string) (*Query, error) {
 	input = strings.TrimSpace(input)
 
@@ -43,15 +49,26 @@ func ParseQuery(input string) (*Query, error) {
 
 	fieldsStr = strings.TrimSpace(fieldsStr)
 
-	var fields []string
+	var fields []Field
 	if fieldsStr == "*" || fieldsStr == "" {
-		fields = []string{} // Empty means all/wildcard
+		fields = []Field{} // Empty means all/wildcard
 	} else {
 		parts := strings.Split(fieldsStr, ",")
 		for _, p := range parts {
 			p = strings.TrimSpace(p)
 			if p != "" {
-				fields = append(fields, p)
+				// Check for AS alias
+				var path, alias string
+				pUpper := strings.ToUpper(p)
+				asIndex := strings.LastIndex(pUpper, " AS ")
+				if asIndex != -1 {
+					path = strings.TrimSpace(p[:asIndex])
+					alias = strings.TrimSpace(p[asIndex+4:])
+				} else {
+					path = p
+					alias = p
+				}
+				fields = append(fields, Field{Path: path, Alias: alias})
 			}
 		}
 	}

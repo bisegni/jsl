@@ -442,6 +442,14 @@ func ParseFilterExpression(expr string) *FilterExpr {
 			value := strings.TrimSpace(expr[idx+len(op):])
 
 			if field != "" && value != "" {
+				// Strip quotes if present
+				if len(value) >= 2 {
+					if (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) ||
+						(strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) {
+						value = value[1 : len(value)-1]
+					}
+				}
+
 				// Convert ~= to contains for internal representation
 				internalOp := op
 				if op == "~=" {
