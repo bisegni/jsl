@@ -2,7 +2,9 @@ package engine
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/bisegni/jsl/pkg/database"
 	"github.com/bisegni/jsl/pkg/parser"
@@ -21,47 +23,14 @@ func NewExecutor() *Executor {
 }
 
 func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
-	// Refine query to handle $ operator
-	if q.Condition != "" {
-		refineQuery(q)
-	}
-
-	var currentTable database.Table = input
-
-	// Apply WHERE (Filter)
-	if q.Condition != "" {
-		expr := query.ParseExpression(q.Condition)
-		currentTable = &FilterTable{
-			source:     input,
-			expression: expr,
-		}
-	}
-
-	// Apply SELECT (Projection) or Aggregation
-	hasAggregation := q.GroupBy != ""
-	if !hasAggregation {
-		for _, f := range q.Fields {
-			if f.Aggregate != "" {
-				hasAggregation = true
-				break
-			}
-		}
-	}
-
-	if hasAggregation {
-		currentTable = &AggregateTable{
-			source: currentTable,
-			query:  q,
-		}
-	} else if len(q.Fields) > 0 {
-		currentTable = &ProjectTable{
-			source: currentTable,
-			fields: q.Fields,
-		}
+	// Build the finalized table plan (resolving FROM subqueries and applying WHERE/GROUP/SELECT)
+	finalTable, err := e.BuildTable(q, input)
+	if err != nil {
+		return err
 	}
 
 	// Iterate and Print Results
-	iterator, err := currentTable.Iterate()
+	iterator, err := finalTable.Iterate()
 	if err != nil {
 		return err
 	}
@@ -87,6 +56,79 @@ func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
 	}
 
 	return nil
+}
+
+// BuildTable constructs the logical table for a query, handling recursion for subqueries
+func (e *Executor) BuildTable(q *Query, input database.Table) (database.Table, error) {
+	// 1. Resolve Input Source (FROM clause or default input)
+	var currentTable database.Table = input
+
+	if q.From != "" {
+		// Check if it's a subquery (starts with SELECT)
+		if strings.HasPrefix(strings.ToUpper(q.From), "SELECT") {
+			// Recursive Parse & Build
+			subQ, err := ParseQuery(q.From)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse subquery: %w", err)
+			}
+			// Execute subquery using the SAME input (inheritance)
+			// Or should it be fresh? Usually subqueries in FROM don't inherit row context
+			// unless lateral. But here we assume it's just a derived table on the same source data keys?
+			// Actually, standard SQL: FROM (SELECT ... FROM table)
+			// If inner has no FROM, what does it use?
+			// In our CLI context, "FROM" usually implies overriding the source.
+			// But if the inner query has NO FROM, it should default to the file input.
+			// So passing `input` down is correct.
+			subTable, err := e.BuildTable(subQ, input)
+			if err != nil {
+				return nil, err
+			}
+			currentTable = subTable
+		} else {
+			// TODO: Support file path in FROM?
+			// For now, treat as error or ignore
+			// fmt.Printf("Warning: FROM '%s' not supported (only subqueries)\n", q.From)
+		}
+	}
+
+	// 2. Refine query to handle $ operator
+	if q.Condition != "" {
+		refineQuery(q)
+	}
+
+	// 3. Apply WHERE (Filter)
+	if q.Condition != "" {
+		expr := query.ParseExpression(q.Condition)
+		currentTable = &FilterTable{
+			source:     currentTable,
+			expression: expr,
+		}
+	}
+
+	// 4. Apply SELECT (Projection) or Aggregation
+	hasAggregation := q.GroupBy != ""
+	if !hasAggregation {
+		for _, f := range q.Fields {
+			if f.Aggregate != "" {
+				hasAggregation = true
+				break
+			}
+		}
+	}
+
+	if hasAggregation {
+		currentTable = &AggregateTable{
+			source: currentTable,
+			query:  q,
+		}
+	} else if len(q.Fields) > 0 {
+		currentTable = &ProjectTable{
+			source: currentTable,
+			fields: q.Fields,
+		}
+	}
+
+	return currentTable, nil
 }
 
 // FilterTable wraps a source table and filters rows
@@ -122,6 +164,8 @@ func (it *filterIterator) Next() bool {
 			record = v
 		case map[string]interface{}:
 			record = v
+		case database.OrderedMap:
+			record = v.ToMap()
 		default:
 			// If not a map, wrap it? Or skip?
 			// The filter logic might need adjustment for primitives but currently assumes maps.
@@ -180,72 +224,81 @@ func (it *projectIterator) Next() bool {
 	if it.source.Next() {
 		srcRow := it.source.Row()
 
-		// Temporary map to hold values before determining projection strategy
-		rowMap := make(map[string]interface{})
+		// Temporary storage for values (indexed by field index to preserve order later if needed,
+		// but we can just iterate fields to build ordered map directly)
+		// Wait, unwinding logic needs to know which fields are arrays.
+		// So we collect values first.
 
-		// Track array properties for potential unwinding
-		type arrayField struct {
-			key string
-			val []interface{}
+		type fieldVal struct {
+			key      string
+			val      interface{}
+			isArray  bool
+			arrayVal []interface{}
 		}
-		var arrayFields []arrayField
-		var scalarFields []string // keys of scalar fields
 
-		hasArrays := false
+		fVals := make([]fieldVal, len(it.fields))
+
 		allArraysLength := -1
 		consistentArrays := true
+		hasArrays := false
 
-		for _, f := range it.fields {
+		for i, f := range it.fields {
+			key := f.Alias
+			if key == "" {
+				key = f.Path
+			}
+
 			val, err := srcRow.Get(f.Path)
-			if err == nil {
-				key := f.Alias
-				if key == "" {
-					key = f.Path
-				}
-				rowMap[key] = val
+			if err != nil {
+				// Field missing? nil
+				val = nil
+			}
 
-				// Check if value is slice
-				if sliceVal, ok := val.([]interface{}); ok {
-					hasArrays = true
-					if allArraysLength == -1 {
-						allArraysLength = len(sliceVal)
-					} else if allArraysLength != len(sliceVal) {
-						consistentArrays = false
-					}
-					arrayFields = append(arrayFields, arrayField{key: key, val: sliceVal})
-				} else {
-					scalarFields = append(scalarFields, key)
+			fv := fieldVal{key: key, val: val}
+
+			if sliceVal, ok := val.([]interface{}); ok {
+				fv.isArray = true
+				fv.arrayVal = sliceVal
+				hasArrays = true
+
+				if allArraysLength == -1 {
+					allArraysLength = len(sliceVal)
+				} else if allArraysLength != len(sliceVal) {
+					consistentArrays = false
 				}
 			}
+			fVals[i] = fv
 		}
 
 		// 3. Unwind Logic
-		// If we have arrays, they are consistent in length, and length > 0, we unwind/zip them.
 		if hasArrays && consistentArrays && allArraysLength > 0 {
 			// Generate N rows
 			for i := 0; i < allArraysLength; i++ {
-				newMap := make(map[string]interface{})
-
-				// fill arrays
-				for _, af := range arrayFields {
-					newMap[af.key] = af.val[i]
+				// Build OrderedMap
+				newRow := make(database.OrderedMap, len(it.fields))
+				for j, fv := range fVals {
+					var v interface{}
+					if fv.isArray {
+						v = fv.arrayVal[i]
+					} else {
+						v = fv.val
+					}
+					newRow[j] = database.KeyVal{Key: fv.key, Val: v}
 				}
-				// fill scalars (repeat)
-				for _, k := range scalarFields {
-					newMap[k] = rowMap[k]
-				}
-
-				it.pendingRows = append(it.pendingRows, database.NewJSONRow(newMap))
+				it.pendingRows = append(it.pendingRows, database.NewJSONRow(newRow))
 			}
 
-			// Return the first one
 			it.currentRow = it.pendingRows[0]
 			it.pendingRows = it.pendingRows[1:]
 			return true
 		}
 
 		// 4. Fallback: Return as is (columnar / mismatched length / scalar only)
-		it.currentRow = database.NewJSONRow(rowMap)
+		newRow := make(database.OrderedMap, len(it.fields))
+		for i, fv := range fVals {
+			newRow[i] = database.KeyVal{Key: fv.key, Val: fv.val}
+		}
+		it.currentRow = database.NewJSONRow(newRow)
 		return true
 	}
 	return false

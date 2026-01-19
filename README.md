@@ -77,6 +77,7 @@ Perform queries using a familiar SQL-style syntax.
 
 - **Filtering**: `WHERE` clause support `AND`, `OR` logic.
 - **Aggregation**: `GROUP BY` clause and functions `MAX`, `MIN`, `AVG`, `COUNT`, `SUM`.
+- **Subqueries**: `FROM` clause support for nested queries and array flattening.
 - **Implicit Paths**: Query arrays directly (e.g., `sensors.type`) without `*`.
 
 ```bash

@@ -15,13 +15,14 @@ type Field struct {
 // Query represents a parsed SQL-like query
 type Query struct {
 	Fields    []Field
+	From      string // Subquery or source
 	Condition string
 	GroupBy   string
 }
 
 // ParseQuery parses a SELECT string.
-// Syntax: SELECT <fields> [WHERE <condition>] [GROUP BY <field>]
-// Example: SELECT room, AVG(val) AS avg_val WHERE val > 0 GROUP BY room
+// Syntax: SELECT <fields> [FROM <source>] [WHERE <condition>] [GROUP BY <field>]
+// Example: SELECT room, AVG(val) AS avg_val FROM (SELECT ...) WHERE val > 0 GROUP BY room
 func ParseQuery(input string) (*Query, error) {
 	input = strings.TrimSpace(input)
 
@@ -32,40 +33,64 @@ func ParseQuery(input string) (*Query, error) {
 
 	rest := input[6:]
 
-	// Check for GROUP BY (must be checked first if it appears after WHERE, or maybe split by keywords)
-	// Simplest: Find GROUP BY, then WHERE in the remaining part.
-	// But WHERE usually comes before GROUP BY.
-
-	groupByIndex := -1
-	upper := strings.ToUpper(rest)
-	if idx := strings.Index(upper, " GROUP BY "); idx != -1 {
-		groupByIndex = idx
+	// Helper to find top-level keywords (ignoring parens)
+	findKeyword := func(s string, keyword string) int {
+		upper := strings.ToUpper(s)
+		key := " " + keyword + " " // ensure word boundary
+		depth := 0
+		for i := 0; i < len(s); i++ {
+			if s[i] == '(' {
+				depth++
+			} else if s[i] == ')' {
+				depth--
+			} else if depth == 0 {
+				// Check for match
+				if i+len(key) <= len(s) {
+					if upper[i:i+len(key)] == key {
+						return i
+					}
+				}
+			}
+		}
+		return -1
 	}
 
+	// 1. Find GROUP BY (Last clause usually)
+	groupByIndex := findKeyword(rest, "GROUP BY")
 	var groupBy string
 	if groupByIndex != -1 {
 		groupBy = strings.TrimSpace(rest[groupByIndex+10:]) // 10 = len(" GROUP BY ")
+		// Remove optional parens around group by field
+		if strings.HasPrefix(groupBy, "(") && strings.HasSuffix(groupBy, ")") {
+			groupBy = strings.TrimSpace(groupBy[1 : len(groupBy)-1])
+		}
 		rest = rest[:groupByIndex]
-		upper = upper[:groupByIndex] // truncate upper for WHERE search
 	}
 
-	// Check for WHERE clause
-	whereIndex := -1
-	if idx := strings.Index(upper, " WHERE "); idx != -1 {
-		whereIndex = idx
-	}
-
-	var fieldsStr string
+	// 2. Find WHERE
+	whereIndex := findKeyword(rest, "WHERE")
 	var condition string
-
 	if whereIndex != -1 {
-		fieldsStr = rest[:whereIndex]
 		condition = strings.TrimSpace(rest[whereIndex+7:])
-	} else {
-		fieldsStr = rest
+		rest = rest[:whereIndex]
 	}
 
-	fieldsStr = strings.TrimSpace(fieldsStr)
+	// 3. Find FROM
+	fromIndex := findKeyword(rest, "FROM")
+	var from string
+	if fromIndex != -1 {
+		from = strings.TrimSpace(rest[fromIndex+6:])
+		// Remove optional parens around subquery if strictly formatted
+		// But usually `FROM (SELECT ...)` -> `(SELECT ...)`
+		// We can strip them here if it looks like a subquery
+		// But let's keep them and let recursive parser handle or strip specific wrapping
+		if strings.HasPrefix(from, "(") && strings.HasSuffix(from, ")") {
+			from = strings.TrimSpace(from[1 : len(from)-1])
+		}
+		rest = rest[:fromIndex]
+	}
+
+	fieldsStr := strings.TrimSpace(rest)
 
 	var fields []Field
 	if fieldsStr == "*" || fieldsStr == "" {
@@ -131,6 +156,7 @@ func ParseQuery(input string) (*Query, error) {
 
 	return &Query{
 		Fields:    fields,
+		From:      from,
 		Condition: condition,
 		GroupBy:   groupBy,
 	}, nil
