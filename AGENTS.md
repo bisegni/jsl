@@ -12,13 +12,13 @@
   - SQL-like `SELECT ...` goes to `engine.ParseQuery` then `engine.Executor.Execute`.
   - Filter expressions go through `pkg/query` and existing `RunFilter`.
   - Path queries default to `RunQuery`.
-- `pkg/engine` builds a table pipeline (input -> optional filter -> optional projection) and streams rows to JSON output.
+- `pkg/engine` builds a table pipeline (input -> optional filter -> optional projection) and streams rows to JSONL output.
 - `pkg/query` owns filter parsing/matching and path extraction.
 - `pkg/database` defines the storage abstraction and adapters (currently JSON/JSONL).
 
 ## CLI Flow (Diagram)
 - `main.go` -> `cmd/root.go` -> `engine.ParseQuery` -> `database.NewJSONTable` -> `engine.Executor.Execute`
-- `Executor.Execute` -> `Table.Iterate` -> optional `FilterTable` -> optional `ProjectTable` -> JSON array encoder
+- `Executor.Execute` -> `Table.Iterate` -> optional `FilterTable` -> optional `ProjectTable` -> JSONL output
 
 ## Database/Storage Management
 - There is no external DB; storage is an interface-driven adapter over input sources.
@@ -33,7 +33,7 @@
 - Keep CLI routing in `cmd/`; do not embed query execution logic directly in `main.go` or Cobra handlers beyond argument parsing.
 - Use `pkg/database.Table` and `RowIterator` for new data sources; do not bypass the abstraction by reading files directly inside `pkg/engine`.
 - Keep JSON/JSONL parsing inside `pkg/parser` and adapters in `pkg/database`.
-- Preserve the executor pipeline order: input -> filter -> projection -> JSON array output.
+- Preserve the executor pipeline order: input -> filter -> projection -> JSONL output.
 - Avoid cross-package import cycles; `pkg/engine` should only depend on `pkg/query`, `pkg/database`, and `pkg/parser` (not `cmd/`).
 
 ## Build, Test, and Development Commands
