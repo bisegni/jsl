@@ -75,6 +75,10 @@ cat examples/sensors.jsonl | jsl -i
 
 Perform queries using a familiar SQL-style syntax.
 
+- **Filtering**: `WHERE` clause support `AND`, `OR` logic.
+- **Aggregation**: `GROUP BY` clause and functions `MAX`, `MIN`, `AVG`, `COUNT`, `SUM`.
+- **Implicit Paths**: Query arrays directly (e.g., `sensors.type`) without `*`.
+
 ```bash
 # Select specific fields
 jsl users.json "SELECT name, age"
@@ -82,8 +86,15 @@ jsl users.json "SELECT name, age"
 # Select with condition
 jsl users.json "SELECT name, city WHERE age > 25"
 
-# Select all fields with condition
-jsl users.json "SELECT * WHERE active = true"
+# Boolean Logic (AND/OR)
+jsl users.json "SELECT * WHERE active = true AND age > 25"
+
+# Implicit Array Paths
+# Equivalent to sensors.*.type='temp'
+jsl sensors.jsonl "SELECT sensors.name WHERE sensors.type='temp'"
+
+# Grouping and Aggregation
+jsl sensors.jsonl "SELECT type, AVG(val) GROUP BY type"
 
 # Advanced Projection
 # Use aliases for cleaner output

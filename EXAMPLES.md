@@ -23,6 +23,30 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  ```
  
 
+### Implicit Array Paths
+ 
+ You can query array fields directly without wildcards. `sensors.type` is automatically treated as `sensors.*.type`.
+ 
+ ```bash
+ # Select all 'name' fields from 'sensors' array
+ jsl examples/sensors.jsonl "SELECT sensors.name"
+ 
+ # Filter where any sensor has type 'temp'
+ jsl examples/sensors.jsonl "SELECT * WHERE sensors.type='temp'"
+ ```
+ 
+ ### Boolean Logic (AND/OR)
+ 
+ Combine multiple conditions in the `WHERE` clause.
+ 
+ ```bash
+ # Match if (type is temp) AND (val >= 10)
+ jsl examples/sensors.jsonl "SELECT * WHERE sensors.type='temp' AND sensors.val>=10"
+ 
+ # Match if val is 10 OR 40
+ jsl examples/sensors.jsonl "SELECT * WHERE sensors.val=10 OR sensors.val=40"
+ ```
+ 
  ### Working with Sensor Data
  
  The `examples/sensors.jsonl` file contains an array of sensor readings for each timestamp.
@@ -77,6 +101,24 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  # {"sensors.*.name": "S1", "sensors.*.val": 10}
  # {"sensors.*.name": "S2", "sensors.*.val": 20}
  ```
+ ```
+
+ ### Grouping and Aggregation (GROUP BY)
+ 
+ Support for `MAX`, `MIN`, `AVG`, `COUNT`, `SUM` and `GROUP BY`.
+ 
+ ```bash
+ # Average value by sensor type
+ jsl examples/sensors.jsonl "SELECT sensors.type, AVG(sensors.val) GROUP BY sensors.type"
+ # Output:
+ # {"avg_sensors_val": 22.5, "sensors.type": "temp"}
+ # ...
+ 
+ # Count sensors per room
+ jsl examples/sensors.jsonl "SELECT sensors.room, COUNT(sensors.name) GROUP BY sensors.room"
+ 
+ # Global Aggregation (no group by)
+ jsl examples/sensors.jsonl "SELECT AVG(sensors.val), MAX(sensors.val)"
  ```
 
  ### Select All (Wildcard)

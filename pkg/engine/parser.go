@@ -5,21 +5,23 @@ import (
 	"strings"
 )
 
-// Field represents a selected field with optional alias
+// Field represents a selected field with optional alias and aggregation
 type Field struct {
-	Path  string
-	Alias string
+	Path      string
+	Alias     string
+	Aggregate string // "MAX", "MIN", "AVG", "COUNT", "SUM" or empty
 }
 
 // Query represents a parsed SQL-like query
 type Query struct {
 	Fields    []Field
 	Condition string
+	GroupBy   string
 }
 
 // ParseQuery parses a SELECT string.
-// Syntax: SELECT <fields> [WHERE <condition>]
-// Example: SELECT name, age AS user_age WHERE age > 25
+// Syntax: SELECT <fields> [WHERE <condition>] [GROUP BY <field>]
+// Example: SELECT room, AVG(val) AS avg_val WHERE val > 0 GROUP BY room
 func ParseQuery(input string) (*Query, error) {
 	input = strings.TrimSpace(input)
 
@@ -30,9 +32,25 @@ func ParseQuery(input string) (*Query, error) {
 
 	rest := input[6:]
 
+	// Check for GROUP BY (must be checked first if it appears after WHERE, or maybe split by keywords)
+	// Simplest: Find GROUP BY, then WHERE in the remaining part.
+	// But WHERE usually comes before GROUP BY.
+
+	groupByIndex := -1
+	upper := strings.ToUpper(rest)
+	if idx := strings.Index(upper, " GROUP BY "); idx != -1 {
+		groupByIndex = idx
+	}
+
+	var groupBy string
+	if groupByIndex != -1 {
+		groupBy = strings.TrimSpace(rest[groupByIndex+10:]) // 10 = len(" GROUP BY ")
+		rest = rest[:groupByIndex]
+		upper = upper[:groupByIndex] // truncate upper for WHERE search
+	}
+
 	// Check for WHERE clause
 	whereIndex := -1
-	upper := strings.ToUpper(rest)
 	if idx := strings.Index(upper, " WHERE "); idx != -1 {
 		whereIndex = idx
 	}
@@ -61,14 +79,52 @@ func ParseQuery(input string) (*Query, error) {
 				var path, alias string
 				pUpper := strings.ToUpper(p)
 				asIndex := strings.LastIndex(pUpper, " AS ")
+
+				rawField := p
 				if asIndex != -1 {
-					path = strings.TrimSpace(p[:asIndex])
+					rawField = strings.TrimSpace(p[:asIndex])
 					alias = strings.TrimSpace(p[asIndex+4:])
 				} else {
-					path = p
-					alias = p
+					alias = "" // derived later or redundant
 				}
-				fields = append(fields, Field{Path: path, Alias: alias})
+
+				// Check for Aggregation Function: FUNC(path)
+				var aggregate string
+
+				// List of supported aggregates
+				aggs := []string{"MAX", "MIN", "AVG", "COUNT", "SUM"}
+				upperRaw := strings.ToUpper(rawField)
+
+				for _, agg := range aggs {
+					prefix := agg + "("
+					if strings.HasPrefix(upperRaw, prefix) && strings.HasSuffix(upperRaw, ")") {
+						aggregate = agg
+						// Extract content inside parens
+						path = strings.TrimSpace(rawField[len(prefix) : len(rawField)-1])
+						break
+					}
+				}
+
+				if aggregate == "" {
+					path = rawField
+				}
+
+				// Default alias if empty
+				if alias == "" {
+					if aggregate != "" {
+						alias = fmt.Sprintf("%s_%s", strings.ToLower(aggregate), strings.ReplaceAll(path, ".", "_"))
+					} else {
+						// e.g. sensors.name -> name? or sensors.name?
+						// Parser previously just put p as alias if no AS
+						alias = path
+					}
+				}
+
+				fields = append(fields, Field{
+					Path:      path,
+					Alias:     alias,
+					Aggregate: aggregate,
+				})
 			}
 		}
 	}
@@ -76,5 +132,6 @@ func ParseQuery(input string) (*Query, error) {
 	return &Query{
 		Fields:    fields,
 		Condition: condition,
+		GroupBy:   groupBy,
 	}, nil
 }

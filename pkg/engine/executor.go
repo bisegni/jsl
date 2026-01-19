@@ -37,8 +37,23 @@ func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
 		}
 	}
 
-	// Apply SELECT (Projection)
-	if len(q.Fields) > 0 {
+	// Apply SELECT (Projection) or Aggregation
+	hasAggregation := q.GroupBy != ""
+	if !hasAggregation {
+		for _, f := range q.Fields {
+			if f.Aggregate != "" {
+				hasAggregation = true
+				break
+			}
+		}
+	}
+
+	if hasAggregation {
+		currentTable = &AggregateTable{
+			source: currentTable,
+			query:  q,
+		}
+	} else if len(q.Fields) > 0 {
 		currentTable = &ProjectTable{
 			source: currentTable,
 			fields: q.Fields,
