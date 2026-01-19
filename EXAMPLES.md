@@ -7,7 +7,9 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  ### Select specific fields
  ```bash
  jsl examples/users.json "SELECT name, age"
- # Output: [{"name":"Alice", "age":30}, ...]
+ # Output:
+ # {"name":"Alice", "age":30}
+ # ...
  ```
  
  ### Select with WHERE clause
@@ -60,11 +62,20 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  ```bash
  # Select only the NAMES of the sensors that are of type 'temp'
  jsl examples/sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type = 'temp'"
- # Output: [{"sensors.$.name": ["sensor_01", "sensor_03"]}, ...]
+ # Output:
+ # {"temp_sensor_names": "sensor_01"}
+ # {"temp_sensor_names": "sensor_03"}
+ # ...
+ ```
  
- # Combine with Alias for clean output
- jsl examples/sensors.jsonl "SELECT sensors.$.name AS temp_sensor_names WHERE sensors.*.type = 'temp'"
- # Output: [{"temp_sensor_names": ["sensor_01", "sensor_03"]}, ...]
+ **Correlated Array Unwinding**:
+ When projecting multiple array fields that result in lists of the same length (e.g. properties of the same objects), `jsl` automatically "zips" them into individual rows.
+ 
+ ```bash
+ jsl examples/sensors.jsonl "SELECT sensors.*.name, sensors.*.val"
+ # Output (instead of parallel arrays):
+ # {"sensors.*.name": "S1", "sensors.*.val": 10}
+ # {"sensors.*.name": "S2", "sensors.*.val": 20}
  ```
  ```
 
@@ -121,15 +132,29 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  
  ```bash
  # Simple object
+ # Simple object
  jsl '{"name":"Alice","age":30}' "SELECT name"
  # Output: "Alice"
  
  # Array of objects
  jsl '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]' "SELECT name"
- # Output: ["Alice", "Bob"]
+ # Output:
+ # "Alice"
+ # "Bob"
  
  # Filtering inline JSON
  jsl '[{"age":25},{"age":30},{"age":35}]' "SELECT * WHERE age >= 30"
+ ```
+ 
+ ## Interactive Mode
+ 
+ Invoke interactive mode with `-i` to execute multiple queries on the same file.
+ 
+ ```bash
+ jsl -i examples/sensors.jsonl
+ # > SELECT sensors.*.type='temp'
+ # ...
+ # > exit
  ```
 
 ## Format Examples

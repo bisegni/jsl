@@ -75,56 +75,52 @@ func RunQuery(filename string, queryPath string, queryPretty bool, queryExtract 
 
 	// If path is "." or empty, apply selection to all records
 	if queryPath == "" || queryPath == "." {
-		output := make([]interface{}, len(records))
-		for i, record := range records {
-			if len(selectFields) > 0 {
-				output[i] = applySelection(record, selectFields)
-			} else {
-				output[i] = record
-			}
-		}
-
 		encoder := json.NewEncoder(os.Stdout)
 		if queryPretty {
 			encoder.SetIndent("", "  ")
+		} else {
+			encoder.SetIndent("", "")
 		}
-		if len(output) == 1 && !queryExtract {
-			return encoder.Encode(output[0])
-		}
-		return encoder.Encode(output)
-	}
 
-	results := make([]interface{}, 0, len(records))
-
-	for _, record := range records {
-		val, err := q.Extract(record)
-		if err != nil {
-			continue // Skip records where path doesn't exist
+		for _, record := range records {
+			var output interface{}
+			if len(selectFields) > 0 {
+				output = applySelection(record, selectFields)
+			} else {
+				output = record
+			}
+			if err := encoder.Encode(output); err != nil {
+				return err
+			}
 		}
-		results = append(results, val)
+		return nil
 	}
 
 	// Output results
 	encoder := json.NewEncoder(os.Stdout)
 	if queryPretty {
 		encoder.SetIndent("", "  ")
+	} else {
+		encoder.SetIndent("", "")
 	}
 
-	if len(results) == 0 {
-		return nil
-	}
+	for _, record := range records {
+		val, err := q.Extract(record)
+		if err != nil {
+			continue // Skip records where path doesn't exist
+		}
 
-	if queryExtract {
-		extracted := make([]interface{}, 0)
-		for _, res := range results {
-			switch v := res.(type) {
+		var resultsToPrint []interface{}
+
+		if queryExtract {
+			switch v := val.(type) {
 			case map[string]interface{}:
-				for k, val := range v {
+				for k, subVal := range v {
 					if len(selectFields) > 0 {
-						item := applySelection(val, selectFields)
-						extracted = append(extracted, item)
+						item := applySelection(subVal, selectFields)
+						resultsToPrint = append(resultsToPrint, item)
 					} else {
-						extracted = append(extracted, map[string]interface{}{k: val})
+						resultsToPrint = append(resultsToPrint, map[string]interface{}{k: subVal})
 					}
 				}
 			case []interface{}:
@@ -132,28 +128,29 @@ func RunQuery(filename string, queryPath string, queryPretty bool, queryExtract 
 					if len(selectFields) > 0 {
 						item = applySelection(item, selectFields)
 					}
-					extracted = append(extracted, item)
+					resultsToPrint = append(resultsToPrint, item)
 				}
 			default:
 				if len(selectFields) > 0 {
-					res = applySelection(res, selectFields)
+					val = applySelection(val, selectFields)
 				}
-				extracted = append(extracted, res)
+				resultsToPrint = append(resultsToPrint, val)
+			}
+		} else {
+			if len(selectFields) > 0 {
+				val = applySelection(val, selectFields)
+			}
+			resultsToPrint = append(resultsToPrint, val)
+		}
+
+		for _, res := range resultsToPrint {
+			if err := encoder.Encode(res); err != nil {
+				return err
 			}
 		}
-		return encoder.Encode(extracted)
 	}
 
-	if len(selectFields) > 0 {
-		for i, res := range results {
-			results[i] = applySelection(res, selectFields)
-		}
-	}
-
-	if len(results) == 1 {
-		return encoder.Encode(results[0])
-	}
-	return encoder.Encode(results)
+	return nil
 }
 
 func applySelection(val interface{}, fields []string) interface{} {

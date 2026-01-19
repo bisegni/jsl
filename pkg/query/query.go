@@ -222,31 +222,43 @@ func extractValue(data interface{}, parts []string) (interface{}, error) {
 
 	case []interface{}:
 		// Handle array access
+		// 1. Explicit Wildcards
 		if part == "*" || part == "%" {
-			// Wildcard - extract from all elements
-			results := make([]interface{}, 0, len(v))
-			for _, item := range v {
-				val, err := extractValue(item, remaining)
-				if err == nil {
-					results = append(results, val)
-				}
-			}
-			return results, nil
+			return extractFromSlice(v, remaining)
 		}
 
-		// Numeric index
+		// 2. Numeric Index
 		idx, err := strconv.Atoi(part)
-		if err != nil {
-			return nil, fmt.Errorf("invalid array index '%s'", part)
+		if err == nil {
+			if idx < 0 || idx >= len(v) {
+				return nil, fmt.Errorf("array index %d out of bounds", idx)
+			}
+			return extractValue(v[idx], remaining)
 		}
-		if idx < 0 || idx >= len(v) {
-			return nil, fmt.Errorf("array index %d out of bounds", idx)
-		}
-		return extractValue(v[idx], remaining)
+
+		// 3. Implicit Wildcard (Array Traversal)
+		// If part is NOT an index, assume we want to map over values
+		// e.g., sensors.type -> sensors.*.type
+		return extractFromSlice(v, parts)
 
 	default:
 		return nil, fmt.Errorf("cannot access '%s' on type %T", part, data)
 	}
+}
+
+// extractFromSlice helper to avoid duplication
+func extractFromSlice(v []interface{}, parts []string) (interface{}, error) {
+	results := make([]interface{}, 0, len(v))
+	for _, item := range v {
+		val, err := extractValue(item, parts)
+		if err == nil {
+			results = append(results, val)
+		}
+	}
+	// If no matches found, return error? Or empty list?
+	// Consistent with * behavior: empty list if nothing matches, or filter out errors.
+	// Current extractValue for * returned results.
+	return results, nil
 }
 
 // Filter represents a filtering condition

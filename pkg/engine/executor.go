@@ -2,7 +2,6 @@ package engine
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"github.com/bisegni/jsl/pkg/database"
@@ -11,10 +10,14 @@ import (
 )
 
 // Executor runs a Query against an Input Table
-type Executor struct{}
+type Executor struct {
+	Pretty bool
+}
 
 func NewExecutor() *Executor {
-	return &Executor{}
+	return &Executor{
+		Pretty: false,
+	}
 }
 
 func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
@@ -27,13 +30,10 @@ func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
 
 	// Apply WHERE (Filter)
 	if q.Condition != "" {
-		expr := query.ParseFilterExpression(q.Condition)
-		if expr == nil {
-			return fmt.Errorf("invalid filter expression: %s", q.Condition)
-		}
+		expr := query.ParseExpression(q.Condition)
 		currentTable = &FilterTable{
-			source: input,
-			filter: query.NewFilter(expr.Field, expr.Operator, expr.Value),
+			source:     input,
+			expression: expr,
 		}
 	}
 
@@ -52,27 +52,32 @@ func (e *Executor) Execute(q *Query, input database.Table, w io.Writer) error {
 	}
 	defer iterator.Close()
 
+	// Stream results as JSONL
 	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-
-	// Collect all results to print as a JSON array (like original JSL behavior)
-	var results []interface{}
+	if e.Pretty {
+		encoder.SetIndent("", "  ")
+	} else {
+		encoder.SetIndent("", "")
+	}
 
 	for iterator.Next() {
-		results = append(results, iterator.Row().Primitive())
+		row := iterator.Row().Primitive()
+		if err := encoder.Encode(row); err != nil {
+			return err
+		}
 	}
 
 	if err := iterator.Error(); err != nil {
 		return err
 	}
 
-	return encoder.Encode(results)
+	return nil
 }
 
 // FilterTable wraps a source table and filters rows
 type FilterTable struct {
-	source database.Table
-	filter *query.Filter
+	source     database.Table
+	expression query.Expression
 }
 
 func (t *FilterTable) Iterate() (database.RowIterator, error) {
@@ -80,12 +85,12 @@ func (t *FilterTable) Iterate() (database.RowIterator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &filterIterator{source: srcIter, filter: t.filter}, nil
+	return &filterIterator{source: srcIter, expression: t.expression}, nil
 }
 
 type filterIterator struct {
-	source database.RowIterator
-	filter *query.Filter
+	source     database.RowIterator
+	expression query.Expression
 }
 
 func (it *filterIterator) Next() bool {
@@ -108,7 +113,7 @@ func (it *filterIterator) Next() bool {
 			continue
 		}
 
-		if it.filter.Match(record) {
+		if it.expression.Evaluate(record) {
 			return true
 		}
 	}
@@ -142,29 +147,90 @@ func (t *ProjectTable) Iterate() (database.RowIterator, error) {
 }
 
 type projectIterator struct {
-	source     database.RowIterator
-	fields     []Field
-	currentRow database.Row
+	source      database.RowIterator
+	fields      []Field
+	currentRow  database.Row
+	pendingRows []database.Row
 }
 
 func (it *projectIterator) Next() bool {
+	// 1. Check if we have pending rows from significant unwinding
+	if len(it.pendingRows) > 0 {
+		it.currentRow = it.pendingRows[0]
+		it.pendingRows = it.pendingRows[1:]
+		return true
+	}
+
+	// 2. Fetch corresponding next row from source
 	if it.source.Next() {
 		srcRow := it.source.Row()
-		// Construct new projected row
-		newMap := make(map[string]interface{})
+
+		// Temporary map to hold values before determining projection strategy
+		rowMap := make(map[string]interface{})
+
+		// Track array properties for potential unwinding
+		type arrayField struct {
+			key string
+			val []interface{}
+		}
+		var arrayFields []arrayField
+		var scalarFields []string // keys of scalar fields
+
+		hasArrays := false
+		allArraysLength := -1
+		consistentArrays := true
 
 		for _, f := range it.fields {
 			val, err := srcRow.Get(f.Path)
 			if err == nil {
-				// Use alias if present, otherwise use path
 				key := f.Alias
 				if key == "" {
 					key = f.Path
 				}
-				newMap[key] = val
+				rowMap[key] = val
+
+				// Check if value is slice
+				if sliceVal, ok := val.([]interface{}); ok {
+					hasArrays = true
+					if allArraysLength == -1 {
+						allArraysLength = len(sliceVal)
+					} else if allArraysLength != len(sliceVal) {
+						consistentArrays = false
+					}
+					arrayFields = append(arrayFields, arrayField{key: key, val: sliceVal})
+				} else {
+					scalarFields = append(scalarFields, key)
+				}
 			}
 		}
-		it.currentRow = database.NewJSONRow(newMap)
+
+		// 3. Unwind Logic
+		// If we have arrays, they are consistent in length, and length > 0, we unwind/zip them.
+		if hasArrays && consistentArrays && allArraysLength > 0 {
+			// Generate N rows
+			for i := 0; i < allArraysLength; i++ {
+				newMap := make(map[string]interface{})
+
+				// fill arrays
+				for _, af := range arrayFields {
+					newMap[af.key] = af.val[i]
+				}
+				// fill scalars (repeat)
+				for _, k := range scalarFields {
+					newMap[k] = rowMap[k]
+				}
+
+				it.pendingRows = append(it.pendingRows, database.NewJSONRow(newMap))
+			}
+
+			// Return the first one
+			it.currentRow = it.pendingRows[0]
+			it.pendingRows = it.pendingRows[1:]
+			return true
+		}
+
+		// 4. Fallback: Return as is (columnar / mismatched length / scalar only)
+		it.currentRow = database.NewJSONRow(rowMap)
 		return true
 	}
 	return false

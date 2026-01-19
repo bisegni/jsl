@@ -5,7 +5,9 @@ A powerful command-line tool written in Go for querying, filtering, and manipula
 ## Features
 
 - 🗣️ **SQL-like Syntax**: Query using familiar syntax: `SELECT ... WHERE ...`
-- 🎨 **Format**: Pretty-print JSON/JSONL files
+- 🖥️ **Interactive Mode**: REPL mode for running multiple queries on the same file (`-i`)
+- 📄 **JSONL Output**: Default output is now streamable JSONL (one object per line)
+- 🎨 **Format**: Pretty-print JSON/JSONL files (use `--pretty` flag)
 - 🔄 **Convert**: Convert between JSON and JSONL formats
 - 📊 **Stats**: Display file statistics and schema information
 - ✅ **Validate**: Validate JSON/JSONL file syntax
@@ -57,6 +59,16 @@ jsl [command] [file|JSON|-] [path|expression] [flags]
 
 If no command is provided, `jsl` defaults to querying the specified file or stdin.
 
+### Interactive Mode
+
+Run `jsl` in interactive mode to execute multiple queries against the same file without reloading it.
+
+```bash
+jsl -i examples/sensors.jsonl
+# or
+cat examples/sensors.jsonl | jsl -i
+```
+
 ### Core Functionality
 
 #### 1. SQL-like Query Syntax
@@ -79,6 +91,14 @@ jsl sensors.jsonl "SELECT sensors.*.type='temp' AS temp_sensors"
 
 # Select only matched array elements using $
 jsl sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type='temp'"
+```
+
+**Output Format**:
+By default, `jsl` outputs data in JSONL format (one JSON object per line).
+To enable pretty-printing (indented JSON blocks), use the `--pretty` flag:
+
+```bash
+jsl --pretty examples/users.json "SELECT name"
 ```
 
 #### 2. Format - Pretty Print
