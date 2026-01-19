@@ -5,7 +5,9 @@ A powerful command-line tool written in Go for querying, filtering, and manipula
 ## Features
 
 - 🗣️ **SQL-like Syntax**: Query using familiar syntax: `SELECT ... WHERE ...`
-- 🎨 **Format**: Pretty-print JSON/JSONL files
+- 🖥️ **Interactive Mode**: REPL mode for running multiple queries on the same file (`-i`)
+- 📄 **JSONL Output**: Default output is now streamable JSONL (one object per line)
+- 🎨 **Format**: Pretty-print JSON/JSONL files (use `--pretty` flag)
 - 🔄 **Convert**: Convert between JSON and JSONL formats
 - 📊 **Stats**: Display file statistics and schema information
 - ✅ **Validate**: Validate JSON/JSONL file syntax
@@ -57,11 +59,26 @@ jsl [command] [file|JSON|-] [path|expression] [flags]
 
 If no command is provided, `jsl` defaults to querying the specified file or stdin.
 
+### Interactive Mode
+
+Run `jsl` in interactive mode to execute multiple queries against the same file without reloading it.
+
+```bash
+jsl -i examples/sensors.jsonl
+# or
+cat examples/sensors.jsonl | jsl -i
+```
+
 ### Core Functionality
 
 #### 1. SQL-like Query Syntax
 
 Perform queries using a familiar SQL-style syntax.
+
+- **Filtering**: `WHERE` clause support `AND`, `OR` logic.
+- **Aggregation**: `GROUP BY` clause and functions `MAX`, `MIN`, `AVG`, `COUNT`, `SUM`.
+- **Subqueries**: `FROM` clause support for nested queries and array flattening.
+- **Implicit Paths**: Query arrays directly (e.g., `sensors.type`) without `*`.
 
 ```bash
 # Select specific fields
@@ -70,8 +87,15 @@ jsl users.json "SELECT name, age"
 # Select with condition
 jsl users.json "SELECT name, city WHERE age > 25"
 
-# Select all fields with condition
-jsl users.json "SELECT * WHERE active = true"
+# Boolean Logic (AND/OR)
+jsl users.json "SELECT * WHERE active = true AND age > 25"
+
+# Implicit Array Paths
+# Equivalent to sensors.*.type='temp'
+jsl sensors.jsonl "SELECT sensors.name WHERE sensors.type='temp'"
+
+# Grouping and Aggregation
+jsl sensors.jsonl "SELECT type, AVG(val) GROUP BY type"
 
 # Advanced Projection
 # Use aliases for cleaner output
@@ -79,6 +103,14 @@ jsl sensors.jsonl "SELECT sensors.*.type='temp' AS temp_sensors"
 
 # Select only matched array elements using $
 jsl sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type='temp'"
+```
+
+**Output Format**:
+By default, `jsl` outputs data in JSONL format (one JSON object per line).
+To enable pretty-printing (indented JSON blocks), use the `--pretty` flag:
+
+```bash
+jsl --pretty examples/users.json "SELECT name"
 ```
 
 #### 2. Format - Pretty Print

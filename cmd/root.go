@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	QueryPath    string
-	QueryPretty  bool
-	QueryExtract bool
-	QuerySelect  []string
+	QueryPath       string
+	QueryPretty     bool
+	QueryExtract    bool
+	QuerySelect     []string
+	InteractiveMode bool
 )
 
 var rootCmd = &cobra.Command{
@@ -40,6 +41,18 @@ Examples:
 		// Check if stdin has data
 		stat, _ := os.Stdin.Stat()
 		hasStdin := (stat.Mode() & os.ModeCharDevice) == 0
+
+		if InteractiveMode {
+			var filename string
+			if len(args) > 0 {
+				filename = args[0]
+			} else if hasStdin {
+				filename = "-"
+			} else {
+				return fmt.Errorf("interactive mode requires a file or stdin input")
+			}
+			return RunInteractive(filename)
+		}
 
 		var filename, expression string
 
@@ -80,7 +93,9 @@ Examples:
 			inputTable := database.NewJSONTable(filename)
 
 			// Execute
+			// Execute
 			executor := engine.NewExecutor()
+			executor.Pretty = QueryPretty
 			return executor.Execute(q, inputTable, os.Stdout)
 		}
 
@@ -101,9 +116,10 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&QueryPath, "path", "p", ".", "Path to extract (e.g., .user.name)")
-	rootCmd.PersistentFlags().BoolVar(&QueryPretty, "pretty", true, "Pretty print output")
+	rootCmd.PersistentFlags().BoolVar(&QueryPretty, "pretty", false, "Pretty print output")
 	rootCmd.PersistentFlags().BoolVarP(&QueryExtract, "extract", "e", false, "Extract mode (flattened line-by-line output)")
 	rootCmd.PersistentFlags().StringSliceVarP(&QuerySelect, "select", "s", []string{}, "Select specific fields to include in output (e.g., value,metadata)")
+	rootCmd.PersistentFlags().BoolVarP(&InteractiveMode, "interactive", "i", false, "Interactive REPL mode")
 
 	// Subcommands that still make sense as separate actions
 	rootCmd.AddCommand(formatCmd)

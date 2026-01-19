@@ -1,48 +1,105 @@
 package engine
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/bisegni/jsl/pkg/query"
 )
 
 // refineQuery rewrites paths containing $ to use the filter from the WHERE clause
-// Example: SELECT sensors.$.name WHERE sensors.*.type='temp' -> SELECT sensors.*.type='temp'.name
+// Example: SELECT sensors.$.name WHERE sensors.type='temp' -> SELECT sensors.*.type='temp'.name
 func refineQuery(q *Query) {
-	// 1. Parse the condition to find the array filter
-	// We are looking for something like "ArrayPath.*.FilterSuffix"
-	// For now, simple string splitting similar to Extract logic
-
-	// This logic duplicates some of query.go/executor parsing but we need strictly the structure
-	// Let's assume the Condition follows the "standard" array filter pattern we support:
-	// "path.to.array.*.condition"
-
-	parts := strings.Split(q.Condition, ".*.")
-	if len(parts) != 2 {
+	if q.Condition == "" {
 		return
 	}
 
-	arrayPath := parts[0]
-	filterSuffix := parts[1]
+	// Parse the condition to AST
+	expr := query.ParseExpression(q.Condition)
 
-	// 2. Iterate fields and replace $
 	for i := range q.Fields {
 		f := &q.Fields[i]
 		if strings.Contains(f.Path, "$") {
-			// Check if field path starts with array path
-			// e.g. "sensors.$.name" vs "sensors"
-			// The $ should appear right after the array path
-			// Construct expected prefix: "sensors.$"
-			expectedPrefix := arrayPath + ".$"
+			// Identify array path: part before .$
+			// e.g. sensors.$.name -> arrayPath="sensors"
+			dollarIndex := strings.Index(f.Path, ".$")
+			if dollarIndex == -1 {
+				continue
+			}
+			arrayPath := f.Path[:dollarIndex]
 
-			if strings.HasPrefix(f.Path, expectedPrefix) {
-				// Replace $ with *.filterSuffix
-				// "sensors.$.name" -> "sensors" + "." + "*" + "." + "filterSuffix" + ".name"
-				// actually just replace ".$" with ".*.filterSuffix"
-				// Note: filterSuffix might contain operators, but here it's just a string replacement
+			// Find a filter in the expression starting with implicit or explicit path
+			// Implicit: sensors.type ('sensors' is arrayPath)
+			// Explicit: sensors.*.type ('sensors.*' is arrayPath + ".?*?")
+			filter := findFilterForArray(expr, arrayPath)
+			if filter != nil {
+				// Construct filter suffix
+				// Field: sensors.type -> Suffix: type
+				// Field: sensors.*.type -> Suffix: type
+				filterField := filter.Field
+				var suffix string
+				if strings.HasPrefix(filterField, arrayPath+".*.") {
+					suffix = filterField[len(arrayPath)+3:]
+				} else if strings.HasPrefix(filterField, arrayPath+".") {
+					suffix = filterField[len(arrayPath)+1:]
+				} else if filterField == arrayPath {
+					// Filter on the array itself? e.g. tags='important' where tags is strings
+					// suffix is empty? value comparison
+					suffix = "" // special handling needed?
+				}
 
-				replacement := ".*." + filterSuffix
-				newPath := strings.Replace(f.Path, ".$", replacement, 1)
-				f.Path = newPath
+				// Reconstruct replacement: .*.suffix=value
+				// Value needs to be handled (quotes etc).
+				// Filter.Value is interface{}.
+				valStr := fmt.Sprintf("%v", filter.Value)
+				// Quote string values if needed (simple heuristic)
+				if _, ok := filter.Value.(string); ok {
+					valStr = "'" + valStr + "'"
+				}
+
+				replacement := ".*"
+				if suffix != "" {
+					replacement += "." + suffix
+				}
+				replacement += filter.Operator + valStr
+
+				// Replace .$ with replacement
+				// replacement is ".*.type='temp'"
+				// f.Path was "sensors.$.name" -> "sensors" + replacement + ".name"
+
+				// Wait, "sensors" + ".*.type='temp'" + ".name" -> "sensors.*.type='temp'.name"
+				// Looks correct.
+
+				// Update path
+				// We replace ".$"
+				f.Path = strings.Replace(f.Path, ".$", replacement, 1)
 			}
 		}
 	}
+}
+
+func findFilterForArray(expr query.Expression, arrayPath string) *query.Filter {
+	// BFS or DFS traversal
+	switch e := expr.(type) {
+	case *query.Condition:
+		// Check if field belongs to arrayPath
+		// 1. Implicit: field starts with "arrayPath."
+		// 2. Explicit: field starts with "arrayPath.*."
+		if strings.HasPrefix(e.Filter.Field, arrayPath+".") {
+			return e.Filter
+		}
+	case *query.AndExpression:
+		// Try left, then right
+		if f := findFilterForArray(e.Left, arrayPath); f != nil {
+			return f
+		}
+		return findFilterForArray(e.Right, arrayPath)
+	case *query.OrExpression:
+		// Ambiguous for OR. Return first match?
+		if f := findFilterForArray(e.Left, arrayPath); f != nil {
+			return f
+		}
+		return findFilterForArray(e.Right, arrayPath)
+	}
+	return nil
 }
