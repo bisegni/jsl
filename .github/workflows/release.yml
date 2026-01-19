@@ -51,96 +51,16 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - name: Generate Release Notes
-        id: changelog
-        run: |
-          # Get the current tag
-          CURRENT_TAG=${GITHUB_REF#refs/tags/}
-          echo "Current tag: $CURRENT_TAG"
-          
-          # Get the previous tag
-          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -A1 "^${CURRENT_TAG}$" | tail -n1)
-          
-          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
-            echo "No previous tag found, using all commits"
-            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
-          fi
-          
-          echo "Previous tag: $PREVIOUS_TAG"
-          
-          # Get commits between tags
-          COMMITS=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --format="%s" --no-merges)
-          
-          # Initialize changelog sections
-          FEATURES=""
-          FIXES=""
-          DOCS=""
-          CHORES=""
-          OTHERS=""
-          
-          # Parse commits by conventional commit type
-          while IFS= read -r commit; do
-            if [[ $commit =~ ^feat(\(.+\))?:\ (.+) ]]; then
-              FEATURES="${FEATURES}- ${BASH_REMATCH[2]}\n"
-            elif [[ $commit =~ ^fix(\(.+\))?:\ (.+) ]]; then
-              FIXES="${FIXES}- ${BASH_REMATCH[2]}\n"
-            elif [[ $commit =~ ^docs(\(.+\))?:\ (.+) ]]; then
-              DOCS="${DOCS}- ${BASH_REMATCH[2]}\n"
-            elif [[ $commit =~ ^(chore|ci|build|refactor|perf|test|style)(\(.+\))?:\ (.+) ]]; then
-              CHORES="${CHORES}- ${BASH_REMATCH[3]}\n"
-            else
-              OTHERS="${OTHERS}- ${commit}\n"
-            fi
-          done <<< "$COMMITS"
-          
-          # Build changelog
-          CHANGELOG="## What's Changed\n\n"
-          
-          if [ -n "$FEATURES" ]; then
-            CHANGELOG="${CHANGELOG}### ✨ Features\n${FEATURES}\n"
-          fi
-          
-          if [ -n "$FIXES" ]; then
-            CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n${FIXES}\n"
-          fi
-          
-          if [ -n "$DOCS" ]; then
-            CHANGELOG="${CHANGELOG}### 📚 Documentation\n${DOCS}\n"
-          fi
-          
-          if [ -n "$CHORES" ]; then
-            CHANGELOG="${CHANGELOG}### 🔧 Maintenance\n${CHORES}\n"
-          fi
-          
-          if [ -n "$OTHERS" ]; then
-            CHANGELOG="${CHANGELOG}### 🔄 Other Changes\n${OTHERS}\n"
-          fi
-          
-          # Add full changelog link
-          if [ "$PREVIOUS_TAG" != "$CURRENT_TAG" ]; then
-            CHANGELOG="${CHANGELOG}\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}"
-          fi
-          
-          # Save to output
-          echo "changelog<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          body: ${{ steps.changelog.outputs.changelog }}
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
