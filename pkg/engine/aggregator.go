@@ -6,8 +6,6 @@ import (
 	"strconv"
 
 	"github.com/bisegni/jsl/pkg/database"
-	"github.com/bisegni/jsl/pkg/parser"
-	"github.com/bisegni/jsl/pkg/query"
 )
 
 // AggregateTable wraps a source table and performs aggregation
@@ -57,24 +55,9 @@ func newAggregatorIterator(source database.RowIterator, q *Query) (*aggregatorIt
 	hasData := false
 
 	// Helper to extract value safely
+	// Helper to extract value safely
 	extract := func(row database.Row, path string) (interface{}, error) {
-		// Use query logic for extraction (support nested paths etc)
-		qry := query.NewQuery(path)
-
-		primitive := row.Primitive()
-
-		// Try to cast to parser.Record (map[string]interface{})
-		if rec, ok := primitive.(parser.Record); ok {
-			return qry.Extract(rec)
-		}
-		if rec, ok := primitive.(map[string]interface{}); ok {
-			return qry.Extract(rec)
-		}
-
-		// If it's not a map, we can't extract paths from it using query.Extract
-		// unless query.Extract was updated to handle interface{}.
-		// But let's assume valid input for now or return error.
-		return nil, fmt.Errorf("cannot extract path '%s' from non-map row type: %T", path, primitive)
+		return row.Get(path)
 	}
 
 	for source.Next() {
@@ -182,15 +165,10 @@ func (s *groupState) update(row database.Row, extractor func(database.Row, strin
 }
 
 func (s *groupState) finalize(groupKey string, groupByField string) database.Row {
-	result := make(map[string]interface{})
+	result := make(database.OrderedMap, 0, len(s.fields))
 
-	// Add GroupBy field if defined
-	if groupByField != "" {
-		// Ideally we should preserve type, but here we only have string key.
-		// User might select grouping field or not.
-		// If selected, we should provide it.
-		// However, we iterate over FIELDS to populate result.
-	}
+	// Add GroupBy field if defined - No, we iterate over FIELDS.
+	// We rely on fields order.
 
 	for i, f := range s.fields {
 		key := f.Alias
@@ -198,25 +176,18 @@ func (s *groupState) finalize(groupKey string, groupByField string) database.Row
 			key = f.Path
 		}
 
+		var val interface{}
 		if f.Aggregate != "" {
-			result[key] = s.aggs[keyFor(i)].Result()
+			val = s.aggs[keyFor(i)].Result()
 		} else {
 			// Non-aggregated field.
-			// If it matches GroupBy, use groupKey.
-			// Otherwise, it's technically invalid SQL, but usually we return first or last value
-			// (or null, or arbitrary).
-			// Since we don't store the first row, we can't easily return arbitrary value unless we stored it.
-			// Optimization: We could store first row data in groupState?
-
-			// Simple logic:
 			if f.Path == groupByField {
-				result[key] = groupKey
+				val = groupKey
 			} else {
-				// Fallback: If we didn't store it, we return null?
-				// Or we should have stored "first value" in update.
-				result[key] = nil
+				val = nil
 			}
 		}
+		result = append(result, database.KeyVal{Key: key, Val: val})
 	}
 	return database.NewJSONRow(result)
 }

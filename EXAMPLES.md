@@ -121,6 +121,23 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  jsl examples/sensors.jsonl "SELECT AVG(sensors.val), MAX(sensors.val)"
  ```
 
+ ### Subqueries and Nested Aggregation (FROM Clause)
+
+ Use the `FROM` clause to perform aggregations on reshaped or flattened data from an inner query. This is useful when you need to unroll arrays before grouping.
+
+ ```bash
+ # Option 1: Using Subqueries (All-in-one command)
+ jsl examples/sensors.jsonl "SELECT name, AVG(value) FROM (SELECT sensors.*.name AS name, sensors.*.value AS value) GROUP BY name"
+ # Output:
+ # {"name":"sensor_01","avg_value":22.5}
+ # {"name":"sensor_02","avg_value":45}
+ # {"name":"sensor_03","avg_value":23.099999999999998}
+ 
+ # Option 2: Using Shell Piping (Simulating nested select)
+ # This achieves the same result by piping the output of the first query into a second jsl instance.
+ jsl examples/sensors.jsonl "SELECT sensors.*.name AS name, sensors.*.value AS value" | jsl "SELECT name, AVG(value) GROUP BY name"
+ ```
+
  ### Select All (Wildcard)
  ```bash
  jsl examples/users.json "SELECT *"

@@ -18,6 +18,8 @@ func (r *JSONRow) Get(field string) (interface{}, error) {
 		return q.Extract(v)
 	case map[string]interface{}:
 		return q.Extract(parser.Record(v))
+	case OrderedMap:
+		return q.Extract(parser.Record(v.ToMap()))
 	default:
 		// For non-map rows (e.g. array of primitives), we can try to return the whole thing
 		// if path is simple, or error.
