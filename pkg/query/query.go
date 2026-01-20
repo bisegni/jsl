@@ -62,6 +62,8 @@ func parsePath(path string) []string {
 					// If we don't split, we get "foo", "*.value>20" which is wrong.
 					if current.String() == "*" || current.String() == "%" {
 						isSeparator = true
+					} else if strings.HasPrefix(segment, "*") || strings.HasPrefix(segment, "%") {
+						isSeparator = true
 					} else {
 						isSeparator = false
 					}
@@ -432,6 +434,10 @@ type FilterExpr struct {
 // and does NOT start with a dot (which signifies a path query)
 func IsFilterExpression(expr string) bool {
 	if strings.HasPrefix(expr, ".") {
+		return false
+	}
+	// Wildcards are handled separately in extractFromMap
+	if strings.HasPrefix(expr, "*") || strings.HasPrefix(expr, "%") {
 		return false
 	}
 	operators := []string{">=", "<=", "!=", "~=", ">", "<", "="}

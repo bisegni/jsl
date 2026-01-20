@@ -46,6 +46,18 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  # Match if val is 10 OR 40
  jsl examples/sensors.jsonl "SELECT * WHERE sensors.val=10 OR sensors.val=40"
  ```
+
+ ### Complex Boolean Logic & Parentheses
+ 
+ Use parentheses to explicitly group conditions and control operator precedence (where `AND` normally binds tighter than `OR`).
+ 
+ ```bash
+ # Explicit grouping: (temp AND high value) OR (any critical type)
+ jsl examples/sensors.jsonl "SELECT * WHERE (sensors.type='temp' AND sensors.val > 25) OR sensors.type='critical'"
+ 
+ # Grouping for OR logic within an AND branch
+ jsl examples/sensors.jsonl "SELECT * WHERE sensors.room='kitchen' AND (sensors.val < 10 OR sensors.val > 40)"
+ ```
  
  ### Working with Sensor Data
  

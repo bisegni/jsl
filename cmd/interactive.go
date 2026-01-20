@@ -8,6 +8,8 @@ import (
 
 	"github.com/bisegni/jsl/pkg/database"
 	"github.com/bisegni/jsl/pkg/engine"
+	"github.com/bisegni/jsl/pkg/plan"
+	"github.com/bisegni/jsl/pkg/planner"
 	"github.com/bisegni/jsl/pkg/query"
 	"github.com/chzyer/readline"
 )
@@ -99,16 +101,31 @@ func RunInteractive(filename string) error {
 func executeInteractiveQuery(filename, expression string) error {
 	// 1. Try SQL-like
 	if strings.HasPrefix(strings.ToUpper(expression), "SELECT") {
-		q, err := engine.ParseQuery(expression)
+		q, err := query.ParseQuery(expression)
 		if err != nil {
 			return fmt.Errorf("parse error: %w", err)
 		}
 
 		inputTable := database.NewJSONTable(filename)
+
+		// Create Plan
+		rootNode, err := planner.CreatePlan(q, inputTable)
+		if err != nil {
+			return fmt.Errorf("planning error: %w", err)
+		}
+
+		// Explain Mode (check global flag, though interactive might want per-query flag processing?)
+		// For simplicity, we use the global flag.
+		if QueryExplain {
+			fmt.Println("Execution Plan:")
+			fmt.Println(plan.FormatPlan(rootNode))
+			return nil
+		}
+
 		executor := engine.NewExecutor()
 		executor.Pretty = QueryPretty
 		// We print to stdout
-		return executor.Execute(q, inputTable, os.Stdout)
+		return executor.Execute(rootNode, os.Stdout)
 	}
 
 	// 2. Try Filter Expression

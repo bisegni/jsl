@@ -7,6 +7,8 @@ import (
 
 	"github.com/bisegni/jsl/pkg/database"
 	"github.com/bisegni/jsl/pkg/engine"
+	"github.com/bisegni/jsl/pkg/plan"
+	"github.com/bisegni/jsl/pkg/planner"
 	"github.com/bisegni/jsl/pkg/query"
 	"github.com/spf13/cobra"
 )
@@ -14,6 +16,7 @@ import (
 var (
 	QueryPath       string
 	QueryPretty     bool
+	QueryExplain    bool
 	QueryExtract    bool
 	QuerySelect     []string
 	InteractiveMode bool
@@ -84,7 +87,7 @@ Examples:
 		// Intelligent routing
 		// Check if it's a SQL-like query
 		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(expression)), "SELECT") {
-			q, err := engine.ParseQuery(expression)
+			q, err := query.ParseQuery(expression)
 			if err != nil {
 				return fmt.Errorf("failed to parse query: %w", err)
 			}
@@ -92,11 +95,23 @@ Examples:
 			// Create Input Table
 			inputTable := database.NewJSONTable(filename)
 
-			// Execute
+			// 1. Create Execution Plan
+			rootNode, err := planner.CreatePlan(q, inputTable)
+			if err != nil {
+				return fmt.Errorf("planning error: %w", err)
+			}
+
+			// Explain Mode
+			if QueryExplain {
+				fmt.Println("Execution Plan:")
+				fmt.Println(plan.FormatPlan(rootNode))
+				return nil
+			}
+
 			// Execute
 			executor := engine.NewExecutor()
 			executor.Pretty = QueryPretty
-			return executor.Execute(q, inputTable, os.Stdout)
+			return executor.Execute(rootNode, os.Stdout)
 		}
 
 		if query.IsFilterExpression(expression) {
@@ -117,6 +132,7 @@ func Execute() error {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&QueryPath, "path", "p", ".", "Path to extract (e.g., .user.name)")
 	rootCmd.PersistentFlags().BoolVar(&QueryPretty, "pretty", false, "Pretty print output")
+	rootCmd.PersistentFlags().BoolVar(&QueryExplain, "explain", false, "Print execution plan")
 	rootCmd.PersistentFlags().BoolVarP(&QueryExtract, "extract", "e", false, "Extract mode (flattened line-by-line output)")
 	rootCmd.PersistentFlags().StringSliceVarP(&QuerySelect, "select", "s", []string{}, "Select specific fields to include in output (e.g., value,metadata)")
 	rootCmd.PersistentFlags().BoolVarP(&InteractiveMode, "interactive", "i", false, "Interactive REPL mode")

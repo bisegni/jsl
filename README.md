@@ -87,8 +87,8 @@ jsl users.json "SELECT name, age"
 # Select with condition
 jsl users.json "SELECT name, city WHERE age > 25"
 
-# Boolean Logic (AND/OR)
-jsl users.json "SELECT * WHERE active = true AND age > 25"
+# Boolean Logic (AND/OR and Parentheses)
+jsl users.json "SELECT * WHERE (active = true AND age > 25) OR city = 'New York'"
 
 # Implicit Array Paths
 # Equivalent to sensors.*.type='temp'
@@ -175,6 +175,21 @@ For files without standard extensions, the tool attempts to parse as JSON first,
 - `0` - Success
 - `1` - Error (invalid file, parse error, etc.)
 
+#### 5. Explain Plans
+		
+Understand how your query will be executed using the `--explain` flag.
+
+```bash
+jsl examples/sensors.jsonl "SELECT * WHERE value > 50" --explain
+```
+
+Output:
+```
+Execution Plan:
+└─ Filter(expression: value>50)
+   └─ Scan(table: default)
+```
+
 ## Development
 
 ### Building
@@ -195,18 +210,16 @@ go test ./...
 jsl/
 ├── main.go              # Entry point
 ├── cmd/                 # CLI commands
-│   ├── root.go         # Root command
-│   ├── query.go        # Query command
-│   ├── filter.go       # Filter command
-│   ├── format.go       # Format command
-│   ├── convert.go      # Convert command
-│   ├── stats.go        # Stats command
-│   └── validate.go     # Validate command
+│   ├── root.go          # Root command and global flags
+│   ├── interactive.go   # Interactive REPL
+│   └── ...
 └── pkg/
-    ├── parser/         # JSON/JSONL parser
-    │   └── parser.go
-    └── query/          # Query and filter logic
-        └── query.go
+    ├── database/        # Virtual database layer (Table, Row, Catalog)
+    ├── engine/          # Execution engine
+    ├── parser/          # Raw JSON/JSONL parser
+    ├── plan/            # Execution plan nodes (Scan, Filter, Project, etc.)
+    ├── planner/         # AST to Plan converter
+    └── query/           # SQL Parser (Grammar, AST, Lexer)
 ```
 
 ## License
@@ -219,4 +232,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Author
 
-Created as a tool for working with JSON and JSONL files in command-line environments.
+Created by Claudio Bisegni to test how much new coding agen can do. Used tools; github copilot and mostly antigravity
