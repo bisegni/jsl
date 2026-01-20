@@ -7,12 +7,24 @@ on:
 
 jobs:
   build-and-test:
-    name: Build and Test (${{ matrix.os }})
+    name: Build and Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-13, windows-latest]
+        include:
+          - os: ubuntu-latest
+            name: Ubuntu Latest
+          - os: windows-latest
+            name: Windows Latest
+          - os: macos-14
+            name: macOS 14
+          - os: macos-14
+            name: macOS 14 Arm64
+          - os: macos-15
+            name: macOS 15
+          - os: macos-15
+            name: macOS 15 Arm64
 
     steps:
       - name: Checkout code
