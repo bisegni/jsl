@@ -15,6 +15,17 @@ type Field struct {
 	Aggregate string // "MAX", "MIN", "AVG", "COUNT", "SUM" or empty
 }
 
+func (f Field) String() string {
+	s := f.Path
+	if f.Aggregate != "" {
+		s = fmt.Sprintf("%s(%s)", f.Aggregate, f.Path)
+	}
+	if f.Alias != "" && f.Alias != f.Path {
+		s += " AS " + f.Alias
+	}
+	return s
+}
+
 // SelectQuery represents a parsed SQL-like query IR (Intermediate Representation)
 type SelectQuery struct {
 	Fields    []Field

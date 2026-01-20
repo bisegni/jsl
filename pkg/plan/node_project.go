@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/bisegni/jsl/pkg/database"
 	"github.com/bisegni/jsl/pkg/query"
@@ -26,5 +27,9 @@ func (n *ProjectNode) Children() []Node {
 }
 
 func (n *ProjectNode) Explain() string {
-	return fmt.Sprintf("Project(%d fields)", len(n.Fields))
+	var fieldStrings []string
+	for _, f := range n.Fields {
+		fieldStrings = append(fieldStrings, f.String())
+	}
+	return fmt.Sprintf("Project(%s)", strings.Join(fieldStrings, ", "))
 }

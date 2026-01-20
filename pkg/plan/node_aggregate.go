@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/bisegni/jsl/pkg/database"
 	"github.com/bisegni/jsl/pkg/query"
@@ -29,5 +30,13 @@ func (n *AggregateNode) Children() []Node {
 }
 
 func (n *AggregateNode) Explain() string {
-	return fmt.Sprintf("Aggregate(Group: %s)", n.GroupByField)
+	var fieldStrings []string
+	for _, f := range n.Fields {
+		fieldStrings = append(fieldStrings, f.String())
+	}
+	group := n.GroupByField
+	if group == "" {
+		group = "global"
+	}
+	return fmt.Sprintf("Aggregate(group: %s, fields: [%s])", group, strings.Join(fieldStrings, ", "))
 }

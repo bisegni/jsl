@@ -11,7 +11,7 @@ type ASTSelect struct {
 	SelectFields []*ASTSelectField `parser:"'SELECT' @@ (',' @@)*"`
 	From         *ASTFromClause    `parser:"('FROM' @@)?"`
 	Where        *ASTExpression    `parser:"('WHERE' @@)?"`
-	GroupBy      *string           `parser:"('GROUP' 'BY' @Ident)?"`
+	GroupBy      *ASTValue         `parser:"('GROUP' 'BY' @@)?"`
 }
 
 type ASTSelectField struct {
@@ -108,7 +108,7 @@ func (s *ASTSelect) ToSelectQuery() *SelectQuery {
 	}
 
 	if s.GroupBy != nil {
-		sq.GroupBy = *s.GroupBy
+		sq.GroupBy = s.GroupBy.String()
 	}
 
 	if s.Where != nil {
@@ -219,6 +219,19 @@ func (l *ASTLiteral) String() string {
 	return ""
 }
 
+func (l *ASTLiteral) ToValue() interface{} {
+	if l.Number != nil {
+		return *l.Number
+	}
+	if l.StrVal != nil {
+		return *l.StrVal
+	}
+	if l.Bool != nil {
+		return *l.Bool
+	}
+	return nil
+}
+
 func fmtKey(agg, path string) string {
 	return agg + "_" + strings.ReplaceAll(path, ".", "_")
 }
@@ -264,9 +277,9 @@ func (c *ASTCondition) ToExpression() Expression {
 		if c.Simple.Op != nil {
 			op = *c.Simple.Op
 		}
-		val := ""
+		var val interface{}
 		if c.Simple.Value != nil {
-			val = c.Simple.Value.UnquotedString()
+			val = c.Simple.Value.ToValue()
 		}
 
 		return &Condition{
@@ -283,5 +296,16 @@ func (o *ASTOperand) UnquotedString() string {
 		}
 		return o.Literal.String()
 	}
+	return o.String()
+}
+
+func (o *ASTOperand) ToValue() interface{} {
+	if o.Literal != nil {
+		return o.Literal.ToValue()
+	}
+	if o.Value != nil {
+		return o.Value.String()
+	}
+	// Functions and Subqueries not supported as filter values yet
 	return o.String()
 }

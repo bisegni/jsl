@@ -24,5 +24,5 @@ func (n *FilterNode) Children() []Node {
 }
 
 func (n *FilterNode) Explain() string {
-	return "Filter(...)"
+	return "Filter(expression: " + n.Expression.String() + ")"
 }

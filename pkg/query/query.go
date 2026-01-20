@@ -279,6 +279,19 @@ func NewFilter(field, operator string, value interface{}) *Filter {
 	}
 }
 
+// String returns a string representation of the filter
+func (f *Filter) String() string {
+	valStr := fmt.Sprintf("%v", f.Value)
+	if _, ok := f.Value.(string); ok {
+		valStr = "'" + valStr + "'"
+	}
+	op := f.Operator
+	if op == "contains" {
+		op = "~="
+	}
+	return fmt.Sprintf("%s %s %s", f.Field, op, valStr)
+}
+
 // Match checks if a record matches the filter
 func (f *Filter) Match(record parser.Record) bool {
 	q := NewQuery(f.Field)

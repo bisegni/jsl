@@ -21,5 +21,5 @@ func (n *ScanNode) Children() []Node {
 }
 
 func (n *ScanNode) Explain() string {
-	return fmt.Sprintf("Scan(%s)", n.TableName)
+	return fmt.Sprintf("Scan(table: %s)", n.TableName)
 }

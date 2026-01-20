@@ -9,6 +9,7 @@ import (
 // Expression is a boolean expression that can be evaluated against a record
 type Expression interface {
 	Evaluate(record parser.Record) bool
+	String() string
 }
 
 // Condition is a simple filter (leaf node)
@@ -18,6 +19,10 @@ type Condition struct {
 
 func (c *Condition) Evaluate(record parser.Record) bool {
 	return c.Filter.Match(record)
+}
+
+func (c *Condition) String() string {
+	return c.Filter.String()
 }
 
 // AndExpression represents Logical AND
@@ -30,6 +35,10 @@ func (a *AndExpression) Evaluate(record parser.Record) bool {
 	return a.Left.Evaluate(record) && a.Right.Evaluate(record)
 }
 
+func (a *AndExpression) String() string {
+	return "(" + a.Left.String() + " AND " + a.Right.String() + ")"
+}
+
 // OrExpression represents Logical OR
 type OrExpression struct {
 	Left  Expression
@@ -38,6 +47,10 @@ type OrExpression struct {
 
 func (o *OrExpression) Evaluate(record parser.Record) bool {
 	return o.Left.Evaluate(record) || o.Right.Evaluate(record)
+}
+
+func (o *OrExpression) String() string {
+	return "(" + o.Left.String() + " OR " + o.Right.String() + ")"
 }
 
 // ParseExpression parses a boolean expression string (e.g., "A=1 AND B=2")
