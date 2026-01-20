@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/bisegni/jsl/pkg/database"
 	"github.com/bisegni/jsl/pkg/parser"
@@ -334,7 +335,7 @@ type fieldAggregator interface {
 }
 
 func createAggregator(funcName string) fieldAggregator {
-	switch funcName {
+	switch strings.ToUpper(funcName) {
 	case "MAX":
 		return &maxAggregator{}
 	case "MIN":

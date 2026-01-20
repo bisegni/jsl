@@ -132,7 +132,7 @@ func (f *ASTSelectField) Info() (path, agg string) {
 		} else if cond.Simple != nil && cond.Simple.Operand != nil {
 			op := cond.Simple.Operand
 			if op.Function != nil {
-				agg = op.Function.Name
+				agg = strings.ToUpper(op.Function.Name)
 				if len(op.Function.Args) > 0 {
 					path, _ = op.Function.Args[0].getSimplePath()
 				}

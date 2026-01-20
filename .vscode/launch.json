@@ -13,7 +13,7 @@
             "args": [
                 "examples/sensors.jsonl",
                 "select name, avg(value) from (select sensors.*.name as name, sensors.*.value as value) group by name",
-                "--explain"
+                // "--explain"
             ]
         }
     ]
