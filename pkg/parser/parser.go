@@ -82,13 +82,9 @@ func NewParser(filename string) (*Parser, error) {
 }
 
 func (p *Parser) initReader() {
-	if p.isJSONL {
-		p.scanner = bufio.NewScanner(p.file)
-	} else {
-		// Use bufio.Reader to allow peeking
-		p.bufReader = bufio.NewReader(p.file)
-		p.decoder = json.NewDecoder(p.bufReader)
-	}
+	// Always use bufio.Reader to allow peeking and json.Decoder for robust parsing
+	p.bufReader = bufio.NewReader(p.file)
+	p.decoder = json.NewDecoder(p.bufReader)
 }
 
 // Close closes the underlying file and cleans up any temporary files
@@ -108,77 +104,58 @@ func (p *Parser) IsJSONL() bool {
 
 // Read reads the next record from the file.
 func (p *Parser) Read() (Record, error) {
-	if p.isJSONL {
-		if !p.scanner.Scan() {
-			if err := p.scanner.Err(); err != nil {
-				return nil, err
-			}
-			return nil, io.EOF
-		}
-		line := p.scanner.Text()
-		if len(line) == 0 {
-			return p.Read()
-		}
-		var record Record
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			return nil, fmt.Errorf("failed to parse JSONL record: %w", err)
-		}
-		return record, nil
-	}
-
-	// Standard JSON Streaming Logic
-	if !p.startArrayChecked {
-		// Peek first non-whitespace byte
-		for {
-			b, err := p.bufReader.Peek(1)
-			if err != nil {
-				if err == io.EOF {
-					return nil, io.EOF
-				}
-				return nil, err
-			}
-			c := b[0]
-			if c == ' ' || c == '\n' || c == '\t' || c == '\r' {
-				p.bufReader.ReadByte() // consume whitespace
-				continue
-			}
-			if c == '[' {
-				p.inArray = true
-				if _, err := p.decoder.Token(); err != nil {
+	if !p.isJSONL {
+		// Standard JSON logic: handle optional opening '['
+		if !p.startArrayChecked {
+			// Peek first non-whitespace byte
+			for {
+				b, err := p.bufReader.Peek(1)
+				if err != nil {
+					if err == io.EOF {
+						return nil, io.EOF
+					}
 					return nil, err
 				}
+				c := b[0]
+				if c == ' ' || c == '\n' || c == '\t' || c == '\r' {
+					p.bufReader.ReadByte() // consume whitespace
+					continue
+				}
+				if c == '[' {
+					p.inArray = true
+					if _, err := p.decoder.Token(); err != nil {
+						return nil, err
+					}
+				}
+				p.startArrayChecked = true
+				break
 			}
-			p.startArrayChecked = true
-			break
+		}
+
+		if p.inArray {
+			if !p.decoder.More() {
+				// Consume closing ']'
+				t, err := p.decoder.Token()
+				if err != nil {
+					return nil, err
+				}
+				if delim, ok := t.(json.Delim); ok && delim == ']' {
+					p.inArray = false
+					return nil, io.EOF
+				}
+				return nil, fmt.Errorf("expected array end, got %v", t)
+			}
 		}
 	}
 
-	if p.inArray {
-		if !p.decoder.More() {
-			// Consume closing ']'
-			t, err := p.decoder.Token()
-			if err != nil {
-				return nil, err
-			}
-			if delim, ok := t.(json.Delim); ok && delim == ']' {
-				p.inArray = false
-				return nil, io.EOF
-			}
-			return nil, fmt.Errorf("expected array end, got %v", t)
-		}
-	} else {
-		// Stream of objects or single object
-		// Check EOF via peek, because decoder.More() might rely on array delimiters?
-		// No, More() is for arrays.
-		// Just try Decode.
-		// But check EOF first because Decode might return EOF after reading whitespace.
-	}
-
-	// Decode next item
+	// Decode next item (works for both single JSON object, JSON array element, and multi-line JSONL)
 	var record Record
 	if err := p.decoder.Decode(&record); err != nil {
 		if err == io.EOF {
 			return nil, io.EOF
+		}
+		if p.isJSONL {
+			return nil, fmt.Errorf("failed to decode JSONL record: %w", err)
 		}
 		return nil, fmt.Errorf("failed to decode JSON record: %w", err)
 	}
@@ -203,63 +180,40 @@ func (p *Parser) ReadAll() ([]Record, error) {
 
 // readJSON reads a single JSON file
 func (p *Parser) readJSON() ([]Record, error) {
-	// Reset decoder?
 	p.file.Seek(0, 0)
-	decoder := json.NewDecoder(p.file)
+	p.initReader()
+	p.startArrayChecked = false
+	p.inArray = false
 
 	var allRecords []Record
-
 	for {
-		var data interface{}
-		if err := decoder.Decode(&data); err != nil {
+		rec, err := p.Read()
+		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return nil, fmt.Errorf("failed to parse JSON: %w", err)
+			return nil, err
 		}
-
-		// Convert to array of records
-		switch v := data.(type) {
-		case map[string]interface{}:
-			// Single object
-			allRecords = append(allRecords, v)
-		case []interface{}:
-			// Array of objects
-			for i, item := range v {
-				if obj, ok := item.(map[string]interface{}); ok {
-					allRecords = append(allRecords, obj)
-				} else {
-					return nil, fmt.Errorf("array element %d is not an object", i)
-				}
-			}
-		default:
-			return nil, fmt.Errorf("unexpected JSON type: %T", v)
-		}
+		allRecords = append(allRecords, rec)
 	}
 	return allRecords, nil
 }
 
 // readJSONL reads a JSONL (JSON Lines) file
 func (p *Parser) readJSONL() ([]Record, error) {
-	// Reset scanner?
 	p.file.Seek(0, 0)
-	scanner := bufio.NewScanner(p.file)
+	p.initReader()
 
 	var records []Record
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) == 0 {
-			continue
+	for {
+		rec, err := p.Read()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
 		}
-		var record Record
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			return nil, fmt.Errorf("failed to parse JSONL record: %w", err)
-		}
-		records = append(records, record)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading JSONL file: %w", err)
+		records = append(records, rec)
 	}
 
 	return records, nil

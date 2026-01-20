@@ -1,0 +1,65 @@
+{
+  "created_at": "2016-11-28T14:10:11.338Z",
+  "email": "test@test.com",
+  "email_verified": true,
+  "family_name": "Test",
+  "given_name": "Hello",
+  "last_ip": "94.121.163.63",
+  "last_login": "2016-12-02T01:17:29.310Z",
+  "logins_count": 15,
+  "name": "test@test.com",
+  "nickname": "test",
+  "updated_at": "2016-12-02T01:17:29.310Z",
+  "user_id": "583c3ac3f38e84297c002546"
+}
+{
+  "created_at": "2016-11-28T16:00:04.209Z",
+  "email": "test1@test.com",
+  "email_verified": true,
+  "family_name": "Test1",
+  "given_name": "Hello1",
+  "last_ip": "94.121.168.53",
+  "last_login": "2016-11-28T16:00:47.203Z",
+  "logins_count": 1,
+  "name": "test1@test.com",
+  "nickname": "test1",
+  "updated_at": "2016-11-28T16:00:47.203Z",
+  "user_id": "583c5484cb79a5fe593425a9"
+}
+{
+  "created_at": "2016-11-28T16:12:23.777Z",
+  "email": "aaa@aaa.com",
+  "email_verified": true,
+  "family_name": "Dough",
+  "given_name": "John",
+  "last_ip": "94.121.168.53",
+  "last_login": "2016-11-28T16:12:52.353Z",
+  "logins_count": 2,
+  "name": "aaa@aaa.com",
+  "nickname": "aaa",
+  "updated_at": "2016-11-28T16:12:52.353Z",
+  "user_id": "583c57672c7686377d2f66c9"
+}
+{
+  "created_at": "2016-12-01T23:59:16.473Z",
+  "email": "a@a.com",
+  "email_verified": true,
+  "family_name": "Dough",
+  "given_name": "Jane",
+  "last_ip": "94.121.163.63",
+  "last_login": "2016-12-01T23:59:53.474Z",
+  "logins_count": 3,
+  "name": "a@a.com",
+  "nickname": "a",
+  "updated_at": "2016-12-01T23:59:53.474Z",
+  "user_id": "5840b954da0529cd293d76fe"
+}
+{
+  "created_at": "2016-12-09T12:01:23.787Z",
+  "email": "test9999@test.com",
+  "email_verified": false,
+  "family_name": "User",
+  "given_name": "Dummy",
+  "updated_at": "2016-12-09T12:01:23.787Z",
+  "user_id": "584a9d13e808bcf75f05f580"
+}

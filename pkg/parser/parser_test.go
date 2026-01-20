@@ -357,4 +357,38 @@ func TestReadStreaming(t *testing.T) {
 			t.Errorf("Expected 3 records, got %d", count)
 		}
 	})
+
+	t.Run("PrettyJSONL", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		jsonlFile := filepath.Join(tmpDir, "pretty.jsonl")
+		content := `{
+  "id": 1
+}
+{
+  "id": 2
+}`
+		os.WriteFile(jsonlFile, []byte(content), 0644)
+
+		parser, _ := NewParser(jsonlFile)
+		// Explicitly set JSONL (usually detected by extension, which we have here)
+		defer parser.Close()
+
+		var count int
+		for {
+			rec, err := parser.Read()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				t.Fatalf("Read failed: %v", err)
+			}
+			count++
+			if int(rec["id"].(float64)) != count {
+				t.Errorf("Expected id %d, got %v", count, rec["id"])
+			}
+		}
+		if count != 2 {
+			t.Errorf("Expected 2 records, got %d", count)
+		}
+	})
 }
