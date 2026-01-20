@@ -62,6 +62,8 @@ func parsePath(path string) []string {
 					// If we don't split, we get "foo", "*.value>20" which is wrong.
 					if current.String() == "*" || current.String() == "%" {
 						isSeparator = true
+					} else if strings.HasPrefix(segment, "*") || strings.HasPrefix(segment, "%") {
+						isSeparator = true
 					} else {
 						isSeparator = false
 					}
@@ -277,6 +279,19 @@ func NewFilter(field, operator string, value interface{}) *Filter {
 	}
 }
 
+// String returns a string representation of the filter
+func (f *Filter) String() string {
+	valStr := fmt.Sprintf("%v", f.Value)
+	if _, ok := f.Value.(string); ok {
+		valStr = "'" + valStr + "'"
+	}
+	op := f.Operator
+	if op == "contains" {
+		op = "~="
+	}
+	return fmt.Sprintf("%s %s %s", f.Field, op, valStr)
+}
+
 // Match checks if a record matches the filter
 func (f *Filter) Match(record parser.Record) bool {
 	q := NewQuery(f.Field)
@@ -432,6 +447,10 @@ type FilterExpr struct {
 // and does NOT start with a dot (which signifies a path query)
 func IsFilterExpression(expr string) bool {
 	if strings.HasPrefix(expr, ".") {
+		return false
+	}
+	// Wildcards are handled separately in extractFromMap
+	if strings.HasPrefix(expr, "*") || strings.HasPrefix(expr, "%") {
 		return false
 	}
 	operators := []string{">=", "<=", "!=", "~=", ">", "<", "="}
