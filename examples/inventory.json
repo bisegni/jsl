@@ -1,0 +1,106 @@
+[
+    {
+        "id": 1,
+        "name": "Laptop",
+        "category": "Electronics",
+        "price": 1200.50,
+        "stock": 10,
+        "supplier": {
+            "name": "TechCorp",
+            "country": "USA"
+        },
+        "tags": [
+            "tech",
+            "work",
+            "portable"
+        ]
+    },
+    {
+        "id": 2,
+        "name": "Smartphone",
+        "category": "Electronics",
+        "price": 800.00,
+        "stock": 25,
+        "supplier": {
+            "name": "MobileLife",
+            "country": "South Korea"
+        },
+        "tags": [
+            "tech",
+            "mobile"
+        ]
+    },
+    {
+        "id": 3,
+        "name": "Coffee Maker",
+        "category": "Appliances",
+        "price": 50.99,
+        "stock": 100,
+        "supplier": {
+            "name": "KitchenJoy",
+            "country": "Germany"
+        },
+        "tags": [
+            "home",
+            "kitchen"
+        ]
+    },
+    {
+        "id": 4,
+        "name": "Desk Chair",
+        "category": "Furniture",
+        "price": 150.00,
+        "stock": 15,
+        "supplier": {
+            "name": "ComfortPlus",
+            "country": "Sweden"
+        },
+        "tags": [
+            "office",
+            "furniture"
+        ]
+    },
+    {
+        "id": 5,
+        "name": "Monitor",
+        "category": "Electronics",
+        "price": 300.00,
+        "stock": 40,
+        "supplier": {
+            "name": "TechCorp",
+            "country": "USA"
+        },
+        "tags": [
+            "tech",
+            "work"
+        ]
+    },
+    {
+        "id": 6,
+        "name": "Standing Desk",
+        "category": "Furniture",
+        "price": 450.00,
+        "stock": 5,
+        "supplier": {
+            "name": "ComfortPlus",
+            "country": "Sweden"
+        },
+        "tags": [
+            "office",
+            "furniture"
+        ]
+    },
+    {
+        "id": 7,
+        "name": "Mystery Box",
+        "category": "Misc",
+        "active": true
+    },
+    {
+        "id": 8,
+        "name": "Old Cable",
+        "category": "Misc",
+        "active": false,
+        "price": 0.00
+    }
+]

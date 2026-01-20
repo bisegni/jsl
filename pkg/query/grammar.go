@@ -39,7 +39,7 @@ type ASTCondition struct {
 
 type ASTSimpleCondition struct {
 	Operand *ASTOperand `parser:"  @@"`
-	Op      *string     `parser:"( @('='|'!='|'>'|'<'|'>='|'<='|'CONTAINS')"`
+	Op      *string     `parser:"( @('='|'!='|'>'|'<'|'>='|'<='|'CONTAINS'|'~=')"`
 	Value   *ASTOperand `parser:"  @@ )?"`
 }
 

@@ -22,6 +22,12 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  jsl examples/users.json "SELECT * WHERE active = true"
  ```
  
+ **Boolean Literals**:
+ You can use `TRUE` and `FALSE` keywords (case-insensitive) for boolean comparisons.
+ ```bash
+ jsl examples/users.json "SELECT * WHERE active = TRUE"
+ ```
+ 
 
 ### Implicit Array Paths
  
@@ -120,17 +126,22 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  Support for `MAX`, `MIN`, `AVG`, `COUNT`, `SUM` and `GROUP BY`.
  
  ```bash
- # Average value by sensor type
- jsl examples/sensors.jsonl "SELECT sensors.type, AVG(sensors.val) GROUP BY sensors.type"
- # Output:
- # {"avg_sensors_val": 22.5, "sensors.type": "temp"}
- # ...
+  # Average value by sensor type
+  jsl examples/sensors.jsonl "SELECT sensors.type, AVG(sensors.val) GROUP BY sensors.type"
+  # Output:
+  # {"avg_sensors_val": 22.5, "sensors.type": "temp"}
+  # ...
  
- # Count sensors per room
- jsl examples/sensors.jsonl "SELECT sensors.room, COUNT(sensors.name) GROUP BY sensors.room"
+  # Count sensors per room
+  jsl examples/sensors.jsonl "SELECT sensors.room, COUNT(sensors.name) GROUP BY sensors.room"
  
- # Global Aggregation (no group by)
- jsl examples/sensors.jsonl "SELECT AVG(sensors.val), MAX(sensors.val)"
+  # Global Aggregation (no group by)
+  jsl examples/sensors.jsonl "SELECT AVG(sensors.val), MAX(sensors.val)"
+ 
+  # Handling Missing Fields
+  # Aggregations skip records where the field is missing or null.
+  # If all matching records lack the field, the result is null (or 0 for COUNT).
+  jsl examples/inventory.json "SELECT AVG(price) WHERE category = 'Misc'"
  ```
 
  ### Subqueries and Nested Aggregation (FROM Clause)
@@ -168,11 +179,20 @@ This file demonstrates common usage patterns and examples for the jsl command-li
  
  ### String operations
  ```bash
- # Contains substring
- jsl examples/users.json "SELECT * WHERE name ~= 'li'"
+  # Contains substring (operator)
+  jsl examples/users.json "SELECT * WHERE name ~= 'li'"
  
- # Exact match
- jsl examples/users.json "SELECT * WHERE city = 'Boston'"
+  # Contains substring (keyword)
+  jsl examples/users.json "SELECT * WHERE name CONTAINS 'li'"
+ 
+  # Exact match
+  jsl examples/users.json "SELECT * WHERE city = 'Boston'"
+ 
+  # Inequality
+  jsl examples/users.json "SELECT * WHERE city != 'Boston'"
+ 
+  # Greater than or equal
+  jsl examples/users.json "SELECT * WHERE age >= 30"
  ```
  
  ## Stdin Examples

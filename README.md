@@ -76,6 +76,8 @@ cat examples/sensors.jsonl | jsl -i
 Perform queries using a familiar SQL-style syntax.
 
 - **Filtering**: `WHERE` clause support `AND`, `OR` logic.
+- **Comparison**: `!=`, `>=`, `<=`, `~=` and `CONTAINS` (substring matching).
+- **Literals**: Support for numbers, strings, and booleans (`TRUE`/`FALSE`).
 - **Aggregation**: `GROUP BY` clause and functions `MAX`, `MIN`, `AVG`, `COUNT`, `SUM`.
 - **Subqueries**: `FROM` clause support for nested queries and array flattening.
 - **Implicit Paths**: Query arrays directly (e.g., `sensors.type`) without `*`.

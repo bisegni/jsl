@@ -272,6 +272,10 @@ type Filter struct {
 
 // NewFilter creates a new filter
 func NewFilter(field, operator string, value interface{}) *Filter {
+	operator = strings.ToLower(operator)
+	if operator == "~=" || operator == "contains" {
+		operator = "contains"
+	}
 	return &Filter{
 		Field:    field,
 		Operator: operator,

@@ -144,7 +144,9 @@ func (p *Parser) Read() (Record, error) {
 			}
 			if c == '[' {
 				p.inArray = true
-				p.bufReader.ReadByte() // consume '['
+				if _, err := p.decoder.Token(); err != nil {
+					return nil, err
+				}
 			}
 			p.startArrayChecked = true
 			break
