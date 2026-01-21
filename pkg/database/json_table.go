@@ -11,7 +11,16 @@ type JSONRow struct {
 }
 
 func (r *JSONRow) Get(field string) (interface{}, error) {
+	return r.GetWithFilter(field, nil)
+}
+
+func (r *JSONRow) GetWithFilter(field string, filter interface{}) (interface{}, error) {
 	q := query.NewQuery(field)
+	if filter != nil {
+		if expr, ok := filter.(query.Expression); ok {
+			q.FilterContext = expr
+		}
+	}
 	// We need to handle type assertions since Extract expects parser.Record or standard map
 	switch v := r.data.(type) {
 	case parser.Record:
@@ -23,9 +32,7 @@ func (r *JSONRow) Get(field string) (interface{}, error) {
 	default:
 		// For non-map rows (e.g. array of primitives), we can try to return the whole thing
 		// if path is simple, or error.
-		// However, query.Extract expects map.
-		// Let's rely on query logic.
-		return q.Extract(parser.Record{"wrapped": v}) // Hack if needed, but for now expect objects
+		return q.Extract(parser.Record{"wrapped": v})
 	}
 }
 

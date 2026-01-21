@@ -103,7 +103,8 @@ jsl sensors.jsonl "SELECT type, AVG(val) GROUP BY type"
 # Use aliases for cleaner output
 jsl sensors.jsonl "SELECT sensors.*.type='temp' AS temp_sensors"
 
-# Select only matched array elements using $
+# Select only matched array elements using $ (Correlated Projection)
+# If the WHERE clause filters array elements, $ in SELECT returns ONLY those elements.
 jsl sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type='temp'"
 ```
 
@@ -146,7 +147,6 @@ jsl stats users.json
 jsl validate users.json
 ```
 
-
 ## Examples
 
 ### Complex Pipeline Example
@@ -178,7 +178,7 @@ For files without standard extensions, the tool attempts to parse as JSON first,
 - `1` - Error (invalid file, parse error, etc.)
 
 #### 5. Explain Plans
-		
+
 Understand how your query will be executed using the `--explain` flag.
 
 ```bash
@@ -186,6 +186,7 @@ jsl examples/sensors.jsonl "SELECT * WHERE value > 50" --explain
 ```
 
 Output:
+
 ```
 Execution Plan:
 └─ Filter(expression: value>50)

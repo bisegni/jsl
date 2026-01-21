@@ -57,10 +57,10 @@ type ASTFunction struct {
 
 type ASTValue struct {
 	// Value can be a path with dots and wildcards
-	// Ident or "*" separated by "."
+	// Ident, "*" or "$" separated by "."
 	// We need to capture the whole thing as a string or list of parts?
 	// Simplest: Capture parts and join them.
-	Parts []string `parser:"(@Ident | @('*')) ('.' (@Ident | @('*')))*"`
+	Parts []string `parser:"(@Ident | @('*') | @('$')) ('.' (@Ident | @('*') | @('$')))*"`
 }
 
 func (v *ASTValue) String() string {

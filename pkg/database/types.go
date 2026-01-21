@@ -6,6 +6,8 @@ type Row interface {
 	// Get returns the value of a field.
 	// Supports dot notation for nested fields.
 	Get(field string) (interface{}, error)
+	// GetWithFilter returns the value of a field, using the filter to guide wildcard extraction (e.g. $)
+	GetWithFilter(field string, filter interface{}) (interface{}, error)
 	// Primitive returns the underlying data structure.
 	Primitive() interface{}
 }

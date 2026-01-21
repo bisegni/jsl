@@ -43,7 +43,7 @@ var (
 		{Name: "Number", Pattern: `[-+]?\d*\.?\d+`},
 		{Name: "String", Pattern: `'[^']*'|"[^"]*"`},
 		{Name: "Operator", Pattern: `>=|<=|!=|~=|\.\.|[=<>!~]`},
-		{Name: "Punct", Pattern: `[-+/*%,.()]`},
+		{Name: "Punct", Pattern: `[-+/*%,.$()]`},
 		{Name: "Whitespace", Pattern: `\s+`},
 	})
 

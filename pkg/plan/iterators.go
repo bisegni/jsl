@@ -59,6 +59,7 @@ func (it *filterIterator) Close() error {
 type projectIterator struct {
 	source      database.RowIterator
 	fields      []query.Field
+	filter      query.Expression
 	currentRow  database.Row
 	pendingRows []database.Row
 }
@@ -94,7 +95,7 @@ func (it *projectIterator) Next() bool {
 				key = f.Path
 			}
 
-			val, err := srcRow.Get(f.Path)
+			val, err := srcRow.GetWithFilter(f.Path, it.filter)
 			if err != nil {
 				val = nil
 			}

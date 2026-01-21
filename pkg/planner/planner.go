@@ -58,6 +58,7 @@ func CreatePlan(q *query.SelectQuery, rootTable database.Table) (plan.Node, erro
 		currentNode = &plan.ProjectNode{
 			Input:  currentNode,
 			Fields: q.Fields,
+			Filter: q.Filter,
 		}
 	}
 

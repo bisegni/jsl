@@ -10,7 +10,8 @@ import (
 
 // Query represents a path-based query
 type Query struct {
-	Path string
+	Path          string
+	FilterContext Expression
 }
 
 // NewQuery creates a new query from a path string
@@ -25,7 +26,7 @@ func (q *Query) Extract(record parser.Record) (interface{}, error) {
 	}
 
 	parts := parsePath(q.Path)
-	return extractValue(record, parts)
+	return q.extractValue(record, parts, []string{})
 }
 
 // parsePath parses a dot-separated path into parts
@@ -60,9 +61,9 @@ func parsePath(path string) []string {
 					// regardless of operators.
 					// e.g. "foo.*.value>20" -> "foo", "*", "value>20"
 					// If we don't split, we get "foo", "*.value>20" which is wrong.
-					if current.String() == "*" || current.String() == "%" {
+					if current.String() == "*" || current.String() == "%" || current.String() == "$" {
 						isSeparator = true
-					} else if strings.HasPrefix(segment, "*") || strings.HasPrefix(segment, "%") {
+					} else if strings.HasPrefix(segment, "*") || strings.HasPrefix(segment, "%") || strings.HasPrefix(segment, "$") {
 						isSeparator = true
 					} else {
 						isSeparator = false
@@ -92,14 +93,14 @@ func parsePath(path string) []string {
 }
 
 // extractFromMap handles extracting values from a map, supporting wildcards and operators
-func extractFromMap(m map[string]interface{}, part string, remaining []string) (interface{}, error) {
+func (q *Query) extractFromMap(m map[string]interface{}, part string, remaining []string, currentPath []string) (interface{}, error) {
 	// Check if this part is a filter expression (e.g., "type=temp")
 	if IsFilterExpression(part) {
 		expr := ParseFilterExpression(part)
 		if expr != nil {
 			// Extract the field from the current map to check the condition
-			q := NewQuery(expr.Field)
-			val, err := q.Extract(m)
+			subQ := NewQuery(expr.Field)
+			val, err := subQ.Extract(m)
 			if err == nil {
 				// We found the field, now compare
 				// Parse filter value for comparison (try number first)
@@ -129,7 +130,7 @@ func extractFromMap(m map[string]interface{}, part string, remaining []string) (
 
 				if match {
 					// Condition met! Continue with remaining path on the SAME map
-					return extractValue(m, remaining)
+					return q.extractValue(m, remaining, currentPath)
 				}
 				return nil, fmt.Errorf("filter '%s' did not match", part)
 			}
@@ -137,9 +138,9 @@ func extractFromMap(m map[string]interface{}, part string, remaining []string) (
 	}
 
 	// Simple key access
-	if !strings.HasPrefix(part, "*") && !strings.HasPrefix(part, "%") {
+	if !strings.HasPrefix(part, "*") && !strings.HasPrefix(part, "%") && !strings.HasPrefix(part, "$") {
 		if val, ok := m[part]; ok {
-			return extractValue(val, remaining)
+			return q.extractValue(val, remaining, append(currentPath, part))
 		}
 		return nil, fmt.Errorf("key '%s' not found", part)
 	}
@@ -148,12 +149,12 @@ func extractFromMap(m map[string]interface{}, part string, remaining []string) (
 	var operator string
 	var filterValue string
 
-	if part == "*" || part == "%" {
+	if part == "*" || part == "%" || part == "$" {
 		operator = "*" // match all
 	} else {
 		// Try to find an operator
 		operators := []string{">=", "<=", "!=", "~=", ">", "<", "="}
-		wildcards := []string{"*", "%"}
+		wildcards := []string{"*", "%", "$"}
 		for _, w := range wildcards {
 			for _, op := range operators {
 				if strings.HasPrefix(part, w+op) {
@@ -192,7 +193,15 @@ func extractFromMap(m map[string]interface{}, part string, remaining []string) (
 		}
 
 		if match {
-			val, err := extractValue(v, remaining)
+			// If we are at a correlated wildcard $, we might want further filtering
+			if part == "$" && q.FilterContext != nil {
+				// Check if this item satisfies the filter context
+				if !q.matchesFilterContext(v, append(currentPath, k)) {
+					continue
+				}
+			}
+
+			val, err := q.extractValue(v, remaining, append(currentPath, k))
 			if err == nil {
 				results[k] = val
 			}
@@ -205,7 +214,7 @@ func extractFromMap(m map[string]interface{}, part string, remaining []string) (
 	return results, nil
 }
 
-func extractValue(data interface{}, parts []string) (interface{}, error) {
+func (q *Query) extractValue(data interface{}, parts []string, currentPath []string) (interface{}, error) {
 	if len(parts) == 0 {
 		return data, nil
 	}
@@ -216,17 +225,17 @@ func extractValue(data interface{}, parts []string) (interface{}, error) {
 	switch v := data.(type) {
 	case parser.Record:
 		// Handle parser.Record (which is map[string]interface{})
-		return extractFromMap(v, part, remaining)
+		return q.extractFromMap(v, part, remaining, currentPath)
 
 	case map[string]interface{}:
 		// Handle object access
-		return extractFromMap(v, part, remaining)
+		return q.extractFromMap(v, part, remaining, currentPath)
 
 	case []interface{}:
 		// Handle array access
 		// 1. Explicit Wildcards
-		if part == "*" || part == "%" {
-			return extractFromSlice(v, remaining)
+		if part == "*" || part == "%" || part == "$" {
+			return q.extractFromSlice(v, remaining, currentPath, part == "$")
 		}
 
 		// 2. Numeric Index
@@ -235,13 +244,13 @@ func extractValue(data interface{}, parts []string) (interface{}, error) {
 			if idx < 0 || idx >= len(v) {
 				return nil, fmt.Errorf("array index %d out of bounds", idx)
 			}
-			return extractValue(v[idx], remaining)
+			return q.extractValue(v[idx], remaining, append(currentPath, part))
 		}
 
 		// 3. Implicit Wildcard (Array Traversal)
 		// If part is NOT an index, assume we want to map over values
 		// e.g., sensors.type -> sensors.*.type
-		return extractFromSlice(v, parts)
+		return q.extractFromSlice(v, parts, currentPath, false)
 
 	default:
 		return nil, fmt.Errorf("cannot access '%s' on type %T", part, data)
@@ -249,18 +258,75 @@ func extractValue(data interface{}, parts []string) (interface{}, error) {
 }
 
 // extractFromSlice helper to avoid duplication
-func extractFromSlice(v []interface{}, parts []string) (interface{}, error) {
+func (q *Query) extractFromSlice(v []interface{}, parts []string, currentPath []string, useFilter bool) (interface{}, error) {
 	results := make([]interface{}, 0, len(v))
 	for _, item := range v {
-		val, err := extractValue(item, parts)
+		if useFilter && q.FilterContext != nil {
+			// Check if this item satisfies the filter context
+			// We use string index initially, but maybe we need more logic
+			if !q.matchesFilterContext(item, append(currentPath, "*")) {
+				continue
+			}
+		}
+
+		val, err := q.extractValue(item, parts, append(currentPath, "*"))
 		if err == nil {
 			results = append(results, val)
 		}
 	}
-	// If no matches found, return error? Or empty list?
-	// Consistent with * behavior: empty list if nothing matches, or filter out errors.
-	// Current extractValue for * returned results.
 	return results, nil
+}
+
+// matchesFilterContext checks if the value at the given path satisfies any relevant part of the filter context
+func (q *Query) matchesFilterContext(val interface{}, pathParts []string) bool {
+	if q.FilterContext == nil {
+		return true
+	}
+
+	fullPath := strings.Join(pathParts, ".")
+
+	// Try to find a condition in the filter context that applies to this path
+	// or a subpath of it.
+	// For now, let's implement a simple version:
+	// If the filter has a condition on a field that STARTS with our path,
+	// we evaluate that condition relative to our value.
+	return matchesPartialFilter(val, q.FilterContext, fullPath)
+}
+
+func matchesPartialFilter(val interface{}, expr Expression, prefix string) bool {
+	switch e := expr.(type) {
+	case *Condition:
+		// Check if the condition's field matches our prefix
+		field := e.Filter.Field
+		if field == prefix {
+			// Exact match! Evaluate filter on the current value
+			return e.Filter.matchValue(val)
+		}
+		if strings.HasPrefix(field, prefix+".") {
+			// Filter is on a subfield.
+			subPath := field[len(prefix)+1:]
+			subQ := NewQuery(subPath)
+			subVal, err := subQ.ExtractOnValue(val)
+			if err != nil {
+				return false
+			}
+			return e.Filter.matchValue(subVal)
+		}
+		return true // Condition doesn't apply to this path
+	case *AndExpression:
+		return matchesPartialFilter(val, e.Left, prefix) && matchesPartialFilter(val, e.Right, prefix)
+	case *OrExpression:
+		// For OR, if it's on the same array, it's complex.
+		// For now, assume if either applies, we check it.
+		// But if it doesn't apply, it should return true (pass-through).
+		return matchesPartialFilter(val, e.Left, prefix) || matchesPartialFilter(val, e.Right, prefix)
+	}
+	return true
+}
+
+func (q *Query) ExtractOnValue(val interface{}) (interface{}, error) {
+	parts := parsePath(q.Path)
+	return q.extractValue(val, parts, []string{})
 }
 
 // Filter represents a filtering condition
@@ -454,7 +520,7 @@ func IsFilterExpression(expr string) bool {
 		return false
 	}
 	// Wildcards are handled separately in extractFromMap
-	if strings.HasPrefix(expr, "*") || strings.HasPrefix(expr, "%") {
+	if strings.HasPrefix(expr, "*") || strings.HasPrefix(expr, "%") || strings.HasPrefix(expr, "$") {
 		return false
 	}
 	operators := []string{">=", "<=", "!=", "~=", ">", "<", "="}

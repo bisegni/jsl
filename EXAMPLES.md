@@ -3,250 +3,267 @@
 This file demonstrates common usage patterns and examples for the jsl command-line tool.
 
 ## SQL-like Query Examples
- 
- ### Select specific fields
- ```bash
- jsl examples/users.json "SELECT name, age"
- # Output:
- # {"name":"Alice", "age":30}
- # ...
- ```
- 
- ### Select with WHERE clause
- ```bash
- jsl examples/users.json "SELECT name, city WHERE age > 25"
- ```
- 
- ### Select All with Condition
- ```bash
- jsl examples/users.json "SELECT * WHERE active = true"
- ```
- 
- **Boolean Literals**:
- You can use `TRUE` and `FALSE` keywords (case-insensitive) for boolean comparisons.
- ```bash
- jsl examples/users.json "SELECT * WHERE active = TRUE"
- ```
- 
+
+### Select specific fields
+
+```bash
+jsl examples/users.json "SELECT name, age"
+# Output:
+# {"name":"Alice", "age":30}
+# ...
+```
+
+### Select with WHERE clause
+
+```bash
+jsl examples/users.json "SELECT name, city WHERE age > 25"
+```
+
+### Select All with Condition
+
+```bash
+jsl examples/users.json "SELECT * WHERE active = true"
+```
+
+**Boolean Literals**:
+You can use `TRUE` and `FALSE` keywords (case-insensitive) for boolean comparisons.
+
+```bash
+jsl examples/users.json "SELECT * WHERE active = TRUE"
+```
 
 ### Implicit Array Paths
- 
- You can query array fields directly without wildcards. `sensors.type` is automatically treated as `sensors.*.type`.
- 
- ```bash
- # Select all 'name' fields from 'sensors' array
- jsl examples/sensors.jsonl "SELECT sensors.name"
- 
- # Filter where any sensor has type 'temp'
- jsl examples/sensors.jsonl "SELECT * WHERE sensors.type='temp'"
- ```
- 
- ### Boolean Logic (AND/OR)
- 
- Combine multiple conditions in the `WHERE` clause.
- 
- ```bash
- # Match if (type is temp) AND (val >= 10)
- jsl examples/sensors.jsonl "SELECT * WHERE sensors.type='temp' AND sensors.val>=10"
- 
- # Match if val is 10 OR 40
- jsl examples/sensors.jsonl "SELECT * WHERE sensors.val=10 OR sensors.val=40"
- ```
 
- ### Complex Boolean Logic & Parentheses
- 
- Use parentheses to explicitly group conditions and control operator precedence (where `AND` normally binds tighter than `OR`).
- 
- ```bash
- # Explicit grouping: (temp AND high value) OR (any critical type)
- jsl examples/sensors.jsonl "SELECT * WHERE (sensors.type='temp' AND sensors.val > 25) OR sensors.type='critical'"
- 
- # Grouping for OR logic within an AND branch
- jsl examples/sensors.jsonl "SELECT * WHERE sensors.room='kitchen' AND (sensors.val < 10 OR sensors.val > 40)"
- ```
- 
- ### Working with Sensor Data
- 
- The `examples/sensors.jsonl` file contains an array of sensor readings for each timestamp.
- 
- ```bash
- # Select all sensor names from the array
- jsl examples/sensors.jsonl "SELECT sensors.*.name"
- 
- # Filter ROWS where ANY sensor is of type 'temp' (returns the whole record if match is found)
- jsl examples/sensors.jsonl "SELECT * WHERE sensors.*.type = 'temp'"
- 
- # Filter ARRAY ELEMENTS: Select only the sensors of type 'temp'
- # Syntax: array.*.key=value returns a list of matching sub-objects
- jsl examples/sensors.jsonl "SELECT sensors.*.type='temp'"
- 
- # Filter and Extract: Get only the NAMES of 'temp' sensors
- # Syntax: array.*.filter.field
- jsl examples/sensors.jsonl "SELECT sensors.*.type='temp'.name"
- 
- # Complex Filtering: Select rows where a specific room has sensors
- jsl examples/sensors.jsonl "SELECT * WHERE sensors.*.room = 'kitchen'"
+You can query array fields directly without wildcards. `sensors.type` is automatically treated as `sensors.*.type`.
 
- ### Advanced Projection
- 
- **Aliases (`AS`)**:
- Use `AS` to rename fields or create clean keys for complex paths.
- 
- ```bash
- jsl examples/sensors.jsonl "SELECT sensors.*.type='temp' AS matched_sensors"
- # Output: [{"matched_sensors": [...]}, ...]
- ```
- 
- **Matched Element Projection (`$`)**:
- Use `$` in the SELECT path to project ONLY the array elements that partially matched the WHERE clause.
- This allows you to separate the filter logic from the projection logic.
- 
- ```bash
- # Select only the NAMES of the sensors that are of type 'temp'
- jsl examples/sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type = 'temp'"
+```bash
+# Select all 'name' fields from 'sensors' array
+jsl examples/sensors.jsonl "SELECT sensors.name"
+
+# Filter where any sensor has type 'temp'
+jsl examples/sensors.jsonl "SELECT * WHERE sensors.type='temp'"
+```
+
+### Boolean Logic (AND/OR)
+
+Combine multiple conditions in the `WHERE` clause.
+
+```bash
+# Match if (type is temp) AND (val >= 10)
+jsl examples/sensors.jsonl "SELECT * WHERE sensors.type='temp' AND sensors.val>=10"
+
+# Match if val is 10 OR 40
+jsl examples/sensors.jsonl "SELECT * WHERE sensors.val=10 OR sensors.val=40"
+```
+
+### Complex Boolean Logic & Parentheses
+
+Use parentheses to explicitly group conditions and control operator precedence (where `AND` normally binds tighter than `OR`).
+
+```bash
+# Explicit grouping: (temp AND high value) OR (any critical type)
+jsl examples/sensors.jsonl "SELECT * WHERE (sensors.type='temp' AND sensors.val > 25) OR sensors.type='critical'"
+
+# Grouping for OR logic within an AND branch
+jsl examples/sensors.jsonl "SELECT * WHERE sensors.room='kitchen' AND (sensors.val < 10 OR sensors.val > 40)"
+```
+
+### Working with Sensor Data
+
+The `examples/sensors.jsonl` file contains an array of sensor readings for each timestamp.
+
+````bash
+# Select all sensor names from the array
+jsl examples/sensors.jsonl "SELECT sensors.*.name"
+
+# Filter ROWS where ANY sensor is of type 'temp' (returns the whole record if match is found)
+jsl examples/sensors.jsonl "SELECT * WHERE sensors.*.type = 'temp'"
+
+# Filter ARRAY ELEMENTS: Select only the sensors of type 'temp'
+# Syntax: array.*.key=value returns a list of matching sub-objects
+jsl examples/sensors.jsonl "SELECT sensors.*.type='temp'"
+
+# Filter and Extract: Get only the NAMES of 'temp' sensors
+# Syntax: array.*.filter.field
+jsl examples/sensors.jsonl "SELECT sensors.*.type='temp'.name"
+
+# Complex Filtering: Select rows where a specific room has sensors
+jsl examples/sensors.jsonl "SELECT * WHERE sensors.*.room = 'kitchen'"
+
+### Advanced Projection
+
+**Aliases (`AS`)**:
+Use `AS` to rename fields or create clean keys for complex paths.
+
+```bash
+jsl examples/sensors.jsonl "SELECT sensors.*.type='temp' AS matched_sensors"
+# Output: [{"matched_sensors": [...]}, ...]
+````
+
+**Correlated Projection ($)**:
+Use `$` in the `SELECT` path to project **ONLY** the array elements that satisfy the `WHERE` clause condition. This is extremely powerful for extracting specific data from large arrays while keeping the record structure.
+
+```bash
+# Record: {"sensors": [{"name": "S1", "type": "temp"}, {"name": "S2", "type": "hum"}]}
+
+# Query: Get names of ONLY temp sensors
+jsl examples/sensors.jsonl "SELECT sensors.$.name WHERE sensors.*.type = 'temp'"
+
+# Output: {"sensors.$.name": "S1"} (S2 is filtered out of the projection)
+```
+
+Contrast this with `*`:
+
+```bash
+# Query: Get names of ALL sensors for records that have AT LEAST ONE temp sensor
+jsl examples/sensors.jsonl "SELECT sensors.*.name WHERE sensors.*.type = 'temp'"
+
+# Output:
+# {"sensors.*.name": "S1"}
+# {"sensors.*.name": "S2"}
+```
+
+**Correlated Array Unwinding**:
+When projecting multiple array fields that result in lists of the same length (e.g. properties of the same objects), `jsl` automatically "zips" them into individual rows.
+
+```bash
+jsl examples/sensors.jsonl "SELECT sensors.*.name, sensors.*.val"
+# Output (instead of parallel arrays):
+# {"sensors.*.name": "S1", "sensors.*.val": 10}
+# {"sensors.*.name": "S2", "sensors.*.val": 20}
+```
+
+````
+
+### Grouping and Aggregation (GROUP BY)
+
+Support for `MAX`, `MIN`, `AVG`, `COUNT`, `SUM` and `GROUP BY`.
+
+```bash
+ # Average value by sensor type
+ jsl examples/sensors.jsonl "SELECT sensors.type, AVG(sensors.val) GROUP BY sensors.type"
  # Output:
- # {"temp_sensor_names": "sensor_01"}
- # {"temp_sensor_names": "sensor_03"}
+ # {"avg_sensors_val": 22.5, "sensors.type": "temp"}
  # ...
- ```
- 
- **Correlated Array Unwinding**:
- When projecting multiple array fields that result in lists of the same length (e.g. properties of the same objects), `jsl` automatically "zips" them into individual rows.
- 
- ```bash
- jsl examples/sensors.jsonl "SELECT sensors.*.name, sensors.*.val"
- # Output (instead of parallel arrays):
- # {"sensors.*.name": "S1", "sensors.*.val": 10}
- # {"sensors.*.name": "S2", "sensors.*.val": 20}
- ```
- ```
 
- ### Grouping and Aggregation (GROUP BY)
- 
- Support for `MAX`, `MIN`, `AVG`, `COUNT`, `SUM` and `GROUP BY`.
- 
- ```bash
-  # Average value by sensor type
-  jsl examples/sensors.jsonl "SELECT sensors.type, AVG(sensors.val) GROUP BY sensors.type"
-  # Output:
-  # {"avg_sensors_val": 22.5, "sensors.type": "temp"}
-  # ...
- 
-  # Count sensors per room
-  jsl examples/sensors.jsonl "SELECT sensors.room, COUNT(sensors.name) GROUP BY sensors.room"
- 
-  # Global Aggregation (no group by)
-  jsl examples/sensors.jsonl "SELECT AVG(sensors.val), MAX(sensors.val)"
- 
-  # Handling Missing Fields
-  # Aggregations skip records where the field is missing or null.
-  # If all matching records lack the field, the result is null (or 0 for COUNT).
-  jsl examples/inventory.json "SELECT AVG(price) WHERE category = 'Misc'"
- ```
+ # Count sensors per room
+ jsl examples/sensors.jsonl "SELECT sensors.room, COUNT(sensors.name) GROUP BY sensors.room"
 
- ### Subqueries and Nested Aggregation (FROM Clause)
+ # Global Aggregation (no group by)
+ jsl examples/sensors.jsonl "SELECT AVG(sensors.val), MAX(sensors.val)"
 
- Use the `FROM` clause to perform aggregations on reshaped or flattened data from an inner query. This is useful when you need to unroll arrays before grouping.
+ # Handling Missing Fields
+ # Aggregations skip records where the field is missing or null.
+ # If all matching records lack the field, the result is null (or 0 for COUNT).
+ jsl examples/inventory.json "SELECT AVG(price) WHERE category = 'Misc'"
+````
 
- ```bash
- # Option 1: Using Subqueries (All-in-one command)
- jsl examples/sensors.jsonl "SELECT name, AVG(value) FROM (SELECT sensors.*.name AS name, sensors.*.value AS value) GROUP BY name"
- # Output:
- # {"name":"sensor_01","avg_value":22.5}
- # {"name":"sensor_02","avg_value":45}
- # {"name":"sensor_03","avg_value":23.099999999999998}
- 
- # Option 2: Using Shell Piping (Simulating nested select)
- # This achieves the same result by piping the output of the first query into a second jsl instance.
- jsl examples/sensors.jsonl "SELECT sensors.*.name AS name, sensors.*.value AS value" | jsl "SELECT name, AVG(value) GROUP BY name"
- ```
+### Subqueries and Nested Aggregation (FROM Clause)
 
- ### Select All (Wildcard)
- ```bash
- jsl examples/users.json "SELECT *"
- ```
- 
- ## Filter Examples (using WHERE)
- 
- ### Numeric comparisons
- ```bash
- # Greater than
- jsl examples/users.json "SELECT * WHERE age > 28"
- 
- # Equal to
- jsl examples/users.json "SELECT * WHERE id = 2"
- ```
- 
- ### String operations
- ```bash
-  # Contains substring (operator)
-  jsl examples/users.json "SELECT * WHERE name ~= 'li'"
- 
-  # Contains substring (keyword)
-  jsl examples/users.json "SELECT * WHERE name CONTAINS 'li'"
- 
-  # Exact match
-  jsl examples/users.json "SELECT * WHERE city = 'Boston'"
- 
-  # Inequality
-  jsl examples/users.json "SELECT * WHERE city != 'Boston'"
- 
-  # Greater than or equal
-  jsl examples/users.json "SELECT * WHERE age >= 30"
- ```
- 
- ## Stdin Examples
- 
- ### Reading from pipes
- 
- ```bash
- # Query from stdin
- cat examples/users.json | jsl "SELECT name"
- 
- # Filter from stdin
- cat examples/users.json | jsl "SELECT * WHERE age > 25"
- ```
- 
- ### Working with curl and APIs
- 
- ```bash
- # Query API results
- curl -s https://api.example.com/users | jsl "SELECT email"
- 
- # Filter API results
- curl -s https://api.example.com/users | jsl "SELECT * WHERE status = 'active'"
- ```
- 
- ## Inline JSON Examples
- 
- ### Quick testing without files
- 
- ```bash
- # Simple object
- # Simple object
- jsl '{"name":"Alice","age":30}' "SELECT name"
- # Output: "Alice"
- 
- # Array of objects
- jsl '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]' "SELECT name"
- # Output:
- # "Alice"
- # "Bob"
- 
- # Filtering inline JSON
- jsl '[{"age":25},{"age":30},{"age":35}]' "SELECT * WHERE age >= 30"
- ```
- 
- ## Interactive Mode
- 
- Invoke interactive mode with `-i` to execute multiple queries on the same file.
- 
- ```bash
- jsl -i examples/sensors.jsonl
- # > SELECT sensors.*.type='temp'
- # ...
- # > exit
- ```
+Use the `FROM` clause to perform aggregations on reshaped or flattened data from an inner query. This is useful when you need to unroll arrays before grouping.
+
+```bash
+# Option 1: Using Subqueries (All-in-one command)
+jsl examples/sensors.jsonl "SELECT name, AVG(value) FROM (SELECT sensors.*.name AS name, sensors.*.value AS value) GROUP BY name"
+# Output:
+# {"name":"sensor_01","avg_value":22.5}
+# {"name":"sensor_02","avg_value":45}
+# {"name":"sensor_03","avg_value":23.099999999999998}
+
+# Option 2: Using Shell Piping (Simulating nested select)
+# This achieves the same result by piping the output of the first query into a second jsl instance.
+jsl examples/sensors.jsonl "SELECT sensors.*.name AS name, sensors.*.value AS value" | jsl "SELECT name, AVG(value) GROUP BY name"
+```
+
+### Select All (Wildcard)
+
+```bash
+jsl examples/users.json "SELECT *"
+```
+
+## Filter Examples (using WHERE)
+
+### Numeric comparisons
+
+```bash
+# Greater than
+jsl examples/users.json "SELECT * WHERE age > 28"
+
+# Equal to
+jsl examples/users.json "SELECT * WHERE id = 2"
+```
+
+### String operations
+
+```bash
+ # Contains substring (operator)
+ jsl examples/users.json "SELECT * WHERE name ~= 'li'"
+
+ # Contains substring (keyword)
+ jsl examples/users.json "SELECT * WHERE name CONTAINS 'li'"
+
+ # Exact match
+ jsl examples/users.json "SELECT * WHERE city = 'Boston'"
+
+ # Inequality
+ jsl examples/users.json "SELECT * WHERE city != 'Boston'"
+
+ # Greater than or equal
+ jsl examples/users.json "SELECT * WHERE age >= 30"
+```
+
+## Stdin Examples
+
+### Reading from pipes
+
+```bash
+# Query from stdin
+cat examples/users.json | jsl "SELECT name"
+
+# Filter from stdin
+cat examples/users.json | jsl "SELECT * WHERE age > 25"
+```
+
+### Working with curl and APIs
+
+```bash
+# Query API results
+curl -s https://api.example.com/users | jsl "SELECT email"
+
+# Filter API results
+curl -s https://api.example.com/users | jsl "SELECT * WHERE status = 'active'"
+```
+
+## Inline JSON Examples
+
+### Quick testing without files
+
+```bash
+# Simple object
+# Simple object
+jsl '{"name":"Alice","age":30}' "SELECT name"
+# Output: "Alice"
+
+# Array of objects
+jsl '[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]' "SELECT name"
+# Output:
+# "Alice"
+# "Bob"
+
+# Filtering inline JSON
+jsl '[{"age":25},{"age":30},{"age":35}]' "SELECT * WHERE age >= 30"
+```
+
+## Interactive Mode
+
+Invoke interactive mode with `-i` to execute multiple queries on the same file.
+
+```bash
+jsl -i examples/sensors.jsonl
+# > SELECT sensors.*.type='temp'
+# ...
+# > exit
+```
 
 ## Format Examples
 
@@ -357,174 +374,174 @@ jsl validate /tmp/bad.json
 ```
 
 ## Pipeline Examples
- 
- ### Filter and then query
- 
- ```bash
- jsl examples/users.json "SELECT * WHERE age>25" | jsl "SELECT name"
- ```
- 
- ### Query and then convert format
- 
- ```bash
- jsl examples/users.json "SELECT *" | jsl convert --to jsonl > /tmp/all_users.jsonl
- ```
- 
- ### Complex pipeline
- 
- ```bash
- # Filter active users, extract names, and save as JSONL
- jsl examples/users.json "SELECT name WHERE active=true" | jsl convert --to jsonl > /tmp/active_names.jsonl
- ```
- 
- ### Chaining multiple filters
- 
- ```bash
- # Filter by age, then by city (conceptually)
- # Note: You can do this in one query: SELECT * WHERE age>25 AND city~='New' (if AND is supported, otherwise chain)
- jsl examples/users.json "SELECT * WHERE age>25" | jsl "SELECT * WHERE city ~= 'New'"
- ```
- 
- ## Working with Standard Input
- 
- All commands now support reading from stdin automatically:
- 
- ```bash
- # Query from stdin
- cat examples/users.json | jsl "SELECT name"
- 
- # Filter from stdin
- curl -s https://api.example.com/users | jsl "SELECT * WHERE age>25"
- ```
- 
- ## Integration with Other Tools
- 
- ### With jq
- 
- ```bash
- # Use jsl for initial filtering, then jq for complex transformations
- jsl examples/users.json "SELECT * WHERE age>25" | jq '.[] | {name, age}'
- ```
- 
- ### With grep
- 
- ```bash
- # Extract emails and search for domain
- jsl examples/users.json "SELECT email" | jq -r '.[]' | grep "example.com"
- ```
- 
- ### With awk
- 
- ```bash
- # Get names and format with awk
- jsl examples/users.json "SELECT name" | jq -r '.[]' | awk '{print "User: " $0}'
- ```
- 
- ## Advanced Patterns
- 
- ### Extract multiple fields (using jq)
- 
- ```bash
- jsl examples/users.json "SELECT *" | jq '.[] | {name, age}'
- ```
- 
- ### Count filtered records
- 
- ```bash
- jsl examples/users.json "SELECT * WHERE active=true" | jq 'length'
- ```
- 
- ### Sort by field (using jq)
- 
- ```bash
- jsl examples/users.json "SELECT *" | jq 'sort_by(.age)'
- ```
- 
- ### Group by field (using jq)
- 
- ```bash
- jsl examples/users.json "SELECT *" | jq 'group_by(.city)'
- ```
- 
- ## Performance Tips
- 
- 1. **Use JSONL for large files**: JSONL files can be processed line-by-line, which is more memory-efficient for large datasets.
- 
- 2. **Filter early**: Use `WHERE` clauses to reduce the dataset size before piping to other tools.
- 
- 3. **Use --pretty=false for scripts**: Disable pretty printing in automated scripts to reduce output size.
- 
- 4. **Stream processing**: For very large files, consider processing in chunks.
- 
- ## Common Patterns
- 
- ### Extract unique values
- 
- ```bash
- jsl examples/users.json "SELECT city" | jq -r '.[]' | sort -u
- ```
- 
- ### Count records by field
- 
- ```bash
- jsl examples/users.json "SELECT city" | jq -r '.[]' | sort | uniq -c
- ```
- 
- ### Find min/max values
- 
- ```bash
- # Maximum age
- jsl examples/users.json "SELECT age" | jq 'max'
- 
- # Minimum age
- jsl examples/users.json "SELECT age" | jq 'min'
- ```
- 
- ### Average calculation
- 
- ```bash
- jsl examples/users.json "SELECT age" | jq 'add/length'
- ```
- 
- ## Error Handling
- 
- ### Check if file is valid before processing
- 
- ```bash
- if jsl validate data.json 2>/dev/null; then
-   jsl data.json "SELECT name"
- else
-   echo "Invalid JSON file"
- fi
- ```
- 
- ### Handle missing fields gracefully
- 
- ```bash
- # The tool skips records where the path doesn't exist
- jsl examples/users.json "SELECT optional_field"
- ```
- 
- ## Shell Integration
- 
- ### Bash function wrapper
- 
- ```bash
- # Add to ~/.bashrc
- jslq() {
-   jsl "$1" "SELECT $2"
- }
- 
- # Usage
- jslq examples/users.json "name"
- ```
- 
- ### Alias for common operations
- 
- ```bash
- alias jsl-names='jsl "SELECT name"'
- alias jsl-validate='jsl validate'
- 
- # Usage
- jsl-names examples/users.json
- ```
+
+### Filter and then query
+
+```bash
+jsl examples/users.json "SELECT * WHERE age>25" | jsl "SELECT name"
+```
+
+### Query and then convert format
+
+```bash
+jsl examples/users.json "SELECT *" | jsl convert --to jsonl > /tmp/all_users.jsonl
+```
+
+### Complex pipeline
+
+```bash
+# Filter active users, extract names, and save as JSONL
+jsl examples/users.json "SELECT name WHERE active=true" | jsl convert --to jsonl > /tmp/active_names.jsonl
+```
+
+### Chaining multiple filters
+
+```bash
+# Filter by age, then by city (conceptually)
+# Note: You can do this in one query: SELECT * WHERE age>25 AND city~='New' (if AND is supported, otherwise chain)
+jsl examples/users.json "SELECT * WHERE age>25" | jsl "SELECT * WHERE city ~= 'New'"
+```
+
+## Working with Standard Input
+
+All commands now support reading from stdin automatically:
+
+```bash
+# Query from stdin
+cat examples/users.json | jsl "SELECT name"
+
+# Filter from stdin
+curl -s https://api.example.com/users | jsl "SELECT * WHERE age>25"
+```
+
+## Integration with Other Tools
+
+### With jq
+
+```bash
+# Use jsl for initial filtering, then jq for complex transformations
+jsl examples/users.json "SELECT * WHERE age>25" | jq '.[] | {name, age}'
+```
+
+### With grep
+
+```bash
+# Extract emails and search for domain
+jsl examples/users.json "SELECT email" | jq -r '.[]' | grep "example.com"
+```
+
+### With awk
+
+```bash
+# Get names and format with awk
+jsl examples/users.json "SELECT name" | jq -r '.[]' | awk '{print "User: " $0}'
+```
+
+## Advanced Patterns
+
+### Extract multiple fields (using jq)
+
+```bash
+jsl examples/users.json "SELECT *" | jq '.[] | {name, age}'
+```
+
+### Count filtered records
+
+```bash
+jsl examples/users.json "SELECT * WHERE active=true" | jq 'length'
+```
+
+### Sort by field (using jq)
+
+```bash
+jsl examples/users.json "SELECT *" | jq 'sort_by(.age)'
+```
+
+### Group by field (using jq)
+
+```bash
+jsl examples/users.json "SELECT *" | jq 'group_by(.city)'
+```
+
+## Performance Tips
+
+1.  **Use JSONL for large files**: JSONL files can be processed line-by-line, which is more memory-efficient for large datasets.
+
+2.  **Filter early**: Use `WHERE` clauses to reduce the dataset size before piping to other tools.
+
+3.  **Use --pretty=false for scripts**: Disable pretty printing in automated scripts to reduce output size.
+
+4.  **Stream processing**: For very large files, consider processing in chunks.
+
+## Common Patterns
+
+### Extract unique values
+
+```bash
+jsl examples/users.json "SELECT city" | jq -r '.[]' | sort -u
+```
+
+### Count records by field
+
+```bash
+jsl examples/users.json "SELECT city" | jq -r '.[]' | sort | uniq -c
+```
+
+### Find min/max values
+
+```bash
+# Maximum age
+jsl examples/users.json "SELECT age" | jq 'max'
+
+# Minimum age
+jsl examples/users.json "SELECT age" | jq 'min'
+```
+
+### Average calculation
+
+```bash
+jsl examples/users.json "SELECT age" | jq 'add/length'
+```
+
+## Error Handling
+
+### Check if file is valid before processing
+
+```bash
+if jsl validate data.json 2>/dev/null; then
+  jsl data.json "SELECT name"
+else
+  echo "Invalid JSON file"
+fi
+```
+
+### Handle missing fields gracefully
+
+```bash
+# The tool skips records where the path doesn't exist
+jsl examples/users.json "SELECT optional_field"
+```
+
+## Shell Integration
+
+### Bash function wrapper
+
+```bash
+# Add to ~/.bashrc
+jslq() {
+  jsl "$1" "SELECT $2"
+}
+
+# Usage
+jslq examples/users.json "name"
+```
+
+### Alias for common operations
+
+```bash
+alias jsl-names='jsl "SELECT name"'
+alias jsl-validate='jsl validate'
+
+# Usage
+jsl-names examples/users.json
+```

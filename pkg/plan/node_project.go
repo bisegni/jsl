@@ -12,6 +12,7 @@ import (
 type ProjectNode struct {
 	Input  Node
 	Fields []query.Field
+	Filter query.Expression
 }
 
 func (n *ProjectNode) Execute() (database.RowIterator, error) {
@@ -19,7 +20,7 @@ func (n *ProjectNode) Execute() (database.RowIterator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &projectIterator{source: inputIter, fields: n.Fields}, nil
+	return &projectIterator{source: inputIter, fields: n.Fields, filter: n.Filter}, nil
 }
 
 func (n *ProjectNode) Children() []Node {
